@@ -103,6 +103,8 @@ export default function AuthCard({ onAuthComplete }: AuthCardProps) {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Full Name</label>
                   <input
                     type="text"
+                    name="name"
+                    autoComplete="name"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -116,6 +118,8 @@ export default function AuthCard({ onAuthComplete }: AuthCardProps) {
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Email Address</label>
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -129,6 +133,8 @@ export default function AuthCard({ onAuthComplete }: AuthCardProps) {
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
+                    name="password"
+                    autoComplete={isLogin ? "current-password" : "new-password"}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -152,6 +158,8 @@ export default function AuthCard({ onAuthComplete }: AuthCardProps) {
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Confirm Password</label>
                   <input
                     type={showPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    autoComplete="new-password"
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}

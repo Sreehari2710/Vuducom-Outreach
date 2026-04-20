@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { API_BASE_URL } from "../config";
 
 interface AuthCardProps {
   onAuthComplete: (token: string, user: any) => void;
@@ -28,7 +29,7 @@ export default function AuthCard({ onAuthComplete }: AuthCardProps) {
     setLoading(true);
     try {
       const endpoint = isLogin ? "/api/auth/signin" : "/api/auth/signup";
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),

@@ -34,7 +34,7 @@ This guide explains how to deploy the **Vuducom Outreach Pro** platform to the w
 2.  **Build Settings**:
     - **Base directory**: `frontend` (CRITICAL).
     - **Build command**: `npm run build`.
-    - **Publish directory**: `frontend/.next`.
+    - **Publish directory**: `.next`.
 3.  **Environment Variables**:
     - Go to **Site Configuration** > **Environment variables**.
     - **Add variable**: 

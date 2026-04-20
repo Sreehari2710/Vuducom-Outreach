@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { API_BASE_URL } from "../config";
 import "react-quill/dist/quill.snow.css";
 
 // Dynamic import for ReactQuill to avoid SSR issues
@@ -23,7 +24,7 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
   }, [token]);
 
   const fetchTemplates = () => {
-    fetch("http://127.0.0.1:8000/api/templates", {
+    fetch("${API_BASE_URL}/api/templates", {
         headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -48,8 +49,8 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
 
     try {
       const url = editingId 
-        ? `http://127.0.0.1:8000/api/templates/${editingId}`
-        : "http://127.0.0.1:8000/api/templates";
+        ? `${API_BASE_URL}/api/templates/${editingId}`
+        : "${API_BASE_URL}/api/templates";
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {

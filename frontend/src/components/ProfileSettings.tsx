@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_BASE_URL } from "../config";
 
 interface ProfileSettingsProps {
   token: string;
@@ -36,7 +37,7 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
 
   const fetchProfile = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/user/profile", {
+      const res = await fetch("${API_BASE_URL}/api/user/profile", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await res.json();
@@ -60,7 +61,7 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/user/profile", {
+      const res = await fetch("${API_BASE_URL}/api/user/profile", {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
@@ -87,7 +88,7 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/user/settings", {
+      const res = await fetch("${API_BASE_URL}/api/user/settings", {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",

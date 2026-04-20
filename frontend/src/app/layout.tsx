@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vuducom MailMerge | Outreach CRM",
+  title: "Vuducom | Outreach CRM",
   description: "High-performance influencer outreach and business automation engine.",
 };
 

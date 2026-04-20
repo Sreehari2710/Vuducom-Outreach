@@ -6,6 +6,7 @@ import Templates from "../components/Templates";
 import CampaignWizard from "../components/CampaignWizard";
 import AuthCard from "../components/AuthCard";
 import ProfileSettings from "../components/ProfileSettings";
+import { API_BASE_URL } from "../config";
 
 function HomeContent() {
   const router = useRouter();
@@ -89,7 +90,7 @@ function HomeContent() {
       setUser(parsedUser);
       
       // Critical: Refetch profile to ensure server-side flags (like hasSmtpConfigured) are up-to-date
-      fetch("http://127.0.0.1:8000/api/user/profile", {
+      fetch("${API_BASE_URL}/api/user/profile", {
         headers: { "Authorization": `Bearer ${savedToken}` }
       })
       .then(res => res.json())
@@ -120,7 +121,7 @@ function HomeContent() {
 
   useEffect(() => {
     if (viewingCampaignId && token) {
-      fetch(`http://127.0.0.1:8000/api/campaigns/${viewingCampaignId}`, {
+      fetch(`${API_BASE_URL}/api/campaigns/${viewingCampaignId}`, {
         headers: { "Authorization": `Bearer ${token}` }
       })
         .then(res => res.json())
@@ -133,7 +134,7 @@ function HomeContent() {
 
   const fetchCampaigns = () => {
     if (!token) return;
-    fetch("http://127.0.0.1:8000/api/campaigns", {
+    fetch("${API_BASE_URL}/api/campaigns", {
       headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -181,7 +182,7 @@ function HomeContent() {
 
   const handleDelete = async (id: string, type: 'campaign' | 'template') => {
     try {
-      const url = `http://127.0.0.1:8000/api/${type === 'template' ? 'templates' : 'campaigns'}/${id}`;
+      const url = `${API_BASE_URL}/api/${type === 'template' ? 'templates' : 'campaigns'}/${id}`;
       const res = await fetch(url, { 
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
@@ -203,7 +204,7 @@ function HomeContent() {
     setIsRefreshing(true);
     showNotification("Refreshing data pipeline...", "info");
     
-    fetch("http://127.0.0.1:8000/api/sync-replies", { 
+    fetch("${API_BASE_URL}/api/sync-replies", { 
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -219,7 +220,7 @@ function HomeContent() {
       showNotification(data.message || "Outreach sync complete", "success");
       fetchCampaigns();
       if (viewingCampaignId) {
-        fetch(`http://127.0.0.1:8000/api/campaigns/${viewingCampaignId}`, {
+        fetch(`${API_BASE_URL}/api/campaigns/${viewingCampaignId}`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
           .then(res => res.json())
@@ -232,7 +233,7 @@ function HomeContent() {
 
   const fetchActivities = () => {
     if (!token) return;
-    fetch("http://127.0.0.1:8000/api/notifications", {
+    fetch("${API_BASE_URL}/api/notifications", {
         headers: { "Authorization": `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -241,7 +242,7 @@ function HomeContent() {
   };
 
   const clearActivity = async (id: string) => {
-    await fetch(`http://127.0.0.1:8000/api/notifications/${id}`, { 
+    await fetch(`${API_BASE_URL}/api/notifications/${id}`, { 
         method: 'DELETE',
         headers: { "Authorization": `Bearer ${token}` }
     });
@@ -249,7 +250,7 @@ function HomeContent() {
   };
 
   const clearAllActivities = async () => {
-    await fetch(`http://127.0.0.1:8000/api/notifications`, { 
+    await fetch(`${API_BASE_URL}/api/notifications`, { 
         method: 'DELETE',
         headers: { "Authorization": `Bearer ${token}` }
     });
@@ -257,7 +258,7 @@ function HomeContent() {
   };
 
   const markActivityRead = async (id: string, campaignId?: string) => {
-    await fetch(`http://127.0.0.1:8000/api/notifications/${id}`, { 
+    await fetch(`${API_BASE_URL}/api/notifications/${id}`, { 
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
@@ -282,7 +283,7 @@ function HomeContent() {
   useEffect(() => {
     if (viewingCampaignId && token) {
       const interval = setInterval(() => {
-        fetch(`http://127.0.0.1:8000/api/campaigns/${viewingCampaignId}`, {
+        fetch(`${API_BASE_URL}/api/campaigns/${viewingCampaignId}`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
           .then(res => res.json())
@@ -395,7 +396,7 @@ function HomeContent() {
                     <span className="material-symbols-outlined text-lg">delete</span>
                   </button>
                   <a 
-                    href={`http://127.0.0.1:8000/api/campaigns/${c.id}/export?token=${token}`}
+                    href={`${API_BASE_URL}/api/campaigns/${c.id}/export?token=${token}`}
                     onClick={(e) => e.stopPropagation()}
                     className="w-8 h-8 flex items-center justify-center bg-on-surface text-surface rounded-sm hover:opacity-90 transition-all"
                     title="Export CSV"

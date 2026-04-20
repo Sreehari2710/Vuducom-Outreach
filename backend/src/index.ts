@@ -7,7 +7,7 @@ import { authenticateToken, AuthRequest } from './middleware/authMiddleware';
 import { PrismaClient } from '@prisma/client';
 
 const app = express();
-const port = 8000;
+const port = Number(process.env.PORT) || 8000;
 const prisma = new PrismaClient();
 
 app.use(cors());

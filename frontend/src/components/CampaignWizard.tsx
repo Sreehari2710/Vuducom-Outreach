@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Papa from "papaparse";
+import { API_BASE_URL } from "../config";
 
 export default function CampaignWizard({ onComplete, onNotification, token, user }: { 
   onComplete: () => void,
@@ -24,7 +25,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
 
   useEffect(() => {
     if (token) {
-      fetch("http://127.0.0.1:8000/api/templates", {
+      fetch("${API_BASE_URL}/api/templates", {
         headers: { "Authorization": `Bearer ${token}` }
       })
         .then((res) => res.json())
@@ -76,7 +77,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
 
     // Trust but Verify: Fetch fresh profile configuration to bypass stale frontend state
     try {
-      const profileRes = await fetch("http://127.0.0.1:8000/api/user/profile", {
+      const profileRes = await fetch("${API_BASE_URL}/api/user/profile", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const latestUser = await profileRes.json();
@@ -113,7 +114,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
     }).filter(c => c.email);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/campaigns", {
+      const res = await fetch("${API_BASE_URL}/api/campaigns", {
         method: "POST",
         headers: { 
             "Content-Type": "application/json",
@@ -202,7 +203,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
                 <button 
                   disabled={!campaignName || !selectedTemplate}
                   onClick={async () => {
-                    const res = await fetch(`http://127.0.0.1:8000/api/campaigns/check/${encodeURIComponent(campaignName)}`);
+                    const res = await fetch(`${API_BASE_URL}/api/campaigns/check/${encodeURIComponent(campaignName)}`);
                     const data = await res.json();
                     if (data.exists) {
                        onNotification("A campaign with this name already exists.", "error");

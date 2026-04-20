@@ -90,7 +90,7 @@ function HomeContent() {
       setUser(parsedUser);
       
       // Critical: Refetch profile to ensure server-side flags (like hasSmtpConfigured) are up-to-date
-      fetch("${API_BASE_URL}/api/user/profile", {
+      fetch(`${API_BASE_URL}/api/user/profile`, {
         headers: { "Authorization": `Bearer ${savedToken}` }
       })
       .then(res => res.json())
@@ -134,7 +134,7 @@ function HomeContent() {
 
   const fetchCampaigns = () => {
     if (!token) return;
-    fetch("${API_BASE_URL}/api/campaigns", {
+    fetch(`${API_BASE_URL}/api/campaigns`, {
       headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -204,7 +204,7 @@ function HomeContent() {
     setIsRefreshing(true);
     showNotification("Refreshing data pipeline...", "info");
     
-    fetch("${API_BASE_URL}/api/sync-replies", { 
+    fetch(`${API_BASE_URL}/api/sync-replies`, { 
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -233,7 +233,7 @@ function HomeContent() {
 
   const fetchActivities = () => {
     if (!token) return;
-    fetch("${API_BASE_URL}/api/notifications", {
+    fetch(`${API_BASE_URL}/api/notifications`, {
         headers: { "Authorization": `Bearer ${token}` }
     })
       .then(res => res.json())

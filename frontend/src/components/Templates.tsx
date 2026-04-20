@@ -24,7 +24,7 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
   }, [token]);
 
   const fetchTemplates = () => {
-    fetch("${API_BASE_URL}/api/templates", {
+    fetch(`${API_BASE_URL}/api/templates`, {
         headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -50,7 +50,7 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
     try {
       const url = editingId 
         ? `${API_BASE_URL}/api/templates/${editingId}`
-        : "${API_BASE_URL}/api/templates";
+        : `${API_BASE_URL}/api/templates`;
       const method = editingId ? "PUT" : "POST";
 
       const res = await fetch(url, {

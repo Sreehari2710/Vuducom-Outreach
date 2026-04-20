@@ -25,7 +25,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
 
   useEffect(() => {
     if (token) {
-      fetch("${API_BASE_URL}/api/templates", {
+      fetch(`${API_BASE_URL}/api/templates`, {
         headers: { "Authorization": `Bearer ${token}` }
       })
         .then((res) => res.json())
@@ -77,7 +77,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
 
     // Trust but Verify: Fetch fresh profile configuration to bypass stale frontend state
     try {
-      const profileRes = await fetch("${API_BASE_URL}/api/user/profile", {
+      const profileRes = await fetch(`${API_BASE_URL}/api/user/profile`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const latestUser = await profileRes.json();
@@ -114,7 +114,7 @@ export default function CampaignWizard({ onComplete, onNotification, token, user
     }).filter(c => c.email);
 
     try {
-      const res = await fetch("${API_BASE_URL}/api/campaigns", {
+      const res = await fetch(`${API_BASE_URL}/api/campaigns`, {
         method: "POST",
         headers: { 
             "Content-Type": "application/json",

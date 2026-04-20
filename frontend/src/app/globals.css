@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #b60055;
+  --color-primary-container: #e4006c;
+  --color-on-primary: #ffffff;
+  --color-primary-fixed: #ffd9e0;
+  --color-primary-fixed-dim: #ffb1c3;
+  --color-on-primary-fixed: #3f0019;
+  --color-on-primary-fixed-variant: #8f0041;
+  
+  --color-secondary: #af2659;
+  --color-secondary-container: #ff6595;
+  --color-on-secondary: #ffffff;
+  --color-secondary-fixed: #ffd9e0;
+  --color-secondary-fixed-dim: #ffb1c3;
+  --color-on-secondary-fixed: #3f0019;
+  --color-on-secondary-fixed-variant: #8e0342;
+  --color-on-secondary-container: #6a002f;
+
+  --color-tertiary: #006b20;
+  --color-tertiary-container: #00872b;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-fixed: #80fc87;
+  --color-tertiary-fixed-dim: #64df6e;
+  --color-on-tertiary-fixed: #002105;
+  --color-on-tertiary-fixed-variant: #005317;
+  --color-on-tertiary-container: #f7fff1;
+
+  --color-background: #f8f9fb;
+  --color-on-background: #191c1e;
+
+  --color-surface: #f8f9fb;
+  --color-on-surface: #191c1e;
+  --color-surface-variant: #e1e2e4;
+  --color-on-surface-variant: #5c3f45;
+  --color-surface-dim: #d9dadc;
+  --color-surface-bright: #f8f9fb;
+  --color-surface-tint: #bb0058;
+  --color-inverse-surface: #2e3132;
+  --color-inverse-on-surface: #f0f1f3;
+
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f4f6;
+  --color-surface-container: #edeef0;
+  --color-surface-container-high: #e7e8ea;
+  --color-surface-container-highest: #e1e2e4;
+
+  --color-outline: #906e75;
+  --color-outline-variant: #e5bcc4;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #93000a;
+  
+  --color-warning: #f59e0b;
+  --color-on-warning: #ffffff;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.50rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+}
+
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-background);
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .vudu-card {
+    @apply bg-surface-container-lowest border border-outline-variant/10 rounded-sm shadow-sm transition-all p-6;
+  }
+  .vudu-btn-primary {
+    @apply bg-gradient-to-br from-primary to-primary-container text-on-primary px-6 py-2 rounded-sm font-semibold transition-all shadow-sm hover:opacity-90;
+  }
+  .vudu-input {
+    @apply border border-outline-variant/20 bg-surface-container-low px-4 py-2 rounded-sm focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all text-sm;
+  }
+  .vudu-editor .ql-container {
+    @apply h-[450px] text-base;
+  }
+  .vudu-editor .ql-editor {
+    @apply min-h-full overflow-y-auto;
+  }
+}

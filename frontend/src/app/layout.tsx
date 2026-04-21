@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   description: "High-performance influencer outreach and business automation engine.",
 };
 
+import { AuthProvider } from "@/context/AuthContext";
+import { UIProvider } from "@/context/UIContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,7 +31,13 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
-      <body className="min-h-full bg-background text-on-background">{children}</body>
+      <body className="min-h-full bg-background text-on-background">
+        <AuthProvider>
+          <UIProvider>
+            {children}
+          </UIProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

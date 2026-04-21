@@ -15,6 +15,7 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
   token: string | null
 }) {
   const [templates, setTemplates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newTemplate, setNewTemplate] = useState({ name: "", subject: "", content: "" });
@@ -24,11 +25,16 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
   }, [token]);
 
   const fetchTemplates = () => {
+    setLoading(true);
     fetch(`${API_BASE_URL}/api/templates`, {
         headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => res.json())
-      .then((data) => setTemplates(data));
+      .then((data) => {
+        setTemplates(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   };
 
   const handleEdit = (template: any) => {
@@ -82,10 +88,12 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 md:mb-8 gap-4">
         <div>
            <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-primary mb-1">My Template Library</p>
-           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-on-surface flex items-center gap-4">
-             Templates
-             <span className="bg-surface-container-high text-on-surface-variant text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">{templates.length} TOTAL</span>
-           </h1>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-on-surface flex items-center gap-4">
+              Templates
+              <span className="bg-surface-container-high text-on-surface-variant text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-widest">
+                {loading ? 'LOADING...' : `${templates.length} TOTAL`}
+              </span>
+            </h1>
         </div>
         <button 
           onClick={() => { setIsAdding(true); setEditingId(null); setNewTemplate({ name: "", subject: "", content: "" }); }}
@@ -208,7 +216,12 @@ export default function Templates({ onNotification, onDeleteRequest, searchQuery
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1">
-        {templates.filter(t => 
+        {loading ? (
+          <div className="col-span-full py-20 text-center bg-surface-container-low/20 border border-dashed border-outline-variant/30 rounded-md">
+            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Communicating with Render backend...</p>
+          </div>
+        ) : templates.filter(t => 
           t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
           t.subject.toLowerCase().includes(searchQuery.toLowerCase())
         ).map((t) => (

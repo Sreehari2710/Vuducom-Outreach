@@ -43,7 +43,7 @@ app.post('/api/templates', authenticateToken as any, async (req: AuthRequest, re
   const { name, subject, content } = req.body;
   const userId = req.user?.userId;
   
-  const existing = await prisma.template.findUnique({ where: { name } });
+  const existing = await prisma.template.findFirst({ where: { name, userId } });
   if (existing) {
     return res.status(409).json({ error: "A template with this name already exists." });
   }
@@ -66,7 +66,7 @@ app.put('/api/templates/:id', authenticateToken as any, async (req: AuthRequest,
     // Check if name is taken by ANOTHER template
     if (name) {
       const existing = await prisma.template.findFirst({
-        where: { name, NOT: { id } }
+        where: { name, userId, NOT: { id } }
       });
       if (existing) {
         return res.status(409).json({ error: "A template with this name already exists." });
@@ -115,7 +115,7 @@ app.post('/api/campaigns', authenticateToken as any, createCampaign as any);
 app.get('/api/campaigns/check/:name', authenticateToken as any, async (req: AuthRequest, res) => {
   const name = req.params.name as string;
   const userId = req.user?.userId;
-  const existing = await prisma.campaign.findUnique({ where: { name, userId } });
+  const existing = await prisma.campaign.findFirst({ where: { name, userId } });
   res.json({ exists: !!existing });
 });
 app.get('/api/campaigns/:id/export', authenticateToken as any, getCampaignReport as any);

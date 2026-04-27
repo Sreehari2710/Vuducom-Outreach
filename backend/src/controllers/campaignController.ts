@@ -18,7 +18,7 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "MAIL_NOT_CONNECTED", message: "Please connect your email in Settings before starting a campaign." });
     }
     // 1. Check if name already exists (friendly error)
-    const existing = await prisma.campaign.findUnique({ where: { name } });
+    const existing = await prisma.campaign.findFirst({ where: { name, userId } });
     if (existing) {
       return res.status(409).json({ error: "A campaign with this name already exists. Please choose a unique name." });
     }
@@ -49,15 +49,16 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // 2. Pre-initialize SentEmail records as 'QUEUED'
+    // 2. Pre-initialize SentEmail records as 'QUEUED' or 'FAILED' (if invalid format)
     for (const contact of contacts) {
       try {
+        const isValid = EmailService.isValidEmail(contact.email);
         await prisma.sentEmail.create({
           data: {
-            messageId: `queued-${campaign.id}-${contact.email}-${Date.now()}`,
+            messageId: isValid ? `queued-${campaign.id}-${contact.email}-${Date.now()}` : `invalid-${campaign.id}-${contact.email}-${Date.now()}`,
             recipient: contact.email,
             username: contact.username,
-            status: 'QUEUED',
+            status: isValid ? 'QUEUED' : 'FAILED',
             campaignId: campaign.id,
           }
         });
@@ -81,6 +82,16 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
       (async () => {
         for (const contact of contacts) {
           try {
+            // Re-verify status and format before sending
+            const currentRecord = await prisma.sentEmail.findFirst({
+                where: { campaignId: campaign.id, recipient: contact.email }
+            });
+
+            if (!currentRecord || currentRecord.status !== 'QUEUED') {
+                console.log(`[Campaign ${campaign.id}] Skipping ${contact.email} (Status: ${currentRecord?.status || 'NOT_FOUND'})`);
+                continue;
+            }
+
             console.log(`[Campaign ${campaign.id}] Personalizing for ${contact.email}...`);
             const contactCustomData = contact.customData || {};
             const personalizationVars = {

@@ -50,6 +50,11 @@ export class EmailService {
     }
   }
 
+  static isValidEmail(email: string) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(email);
+  }
+
   static personalizeTemplate(template: string, variables: Record<string, string>) {
     let personalized = template;
     for (const [key, value] of Object.entries(variables)) {

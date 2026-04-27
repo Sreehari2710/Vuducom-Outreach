@@ -167,7 +167,7 @@ export default function DashboardPage() {
                 <button 
                   onClick={() => {
                     setDismissedWizard(true);
-                    router.push("/templates");
+                    router.push("/campaigns/new");
                   }}
                   className="w-full md:w-auto vudu-btn-primary px-8 py-3 text-[10px] tracking-[0.2em]"
                 >

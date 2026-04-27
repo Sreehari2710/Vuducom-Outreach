@@ -110,8 +110,14 @@ export class ReplyService {
             lowerBody.includes("address not found") || 
             lowerBody.includes("message wasn't delivered") ||
             lowerBody.includes("mail delivery failed") ||
+            lowerBody.includes("permanent failure") ||
+            lowerBody.includes("dns error") ||
+            lowerBody.includes("quota exceeded") ||
+            lowerBody.includes("recipient server did not accept our connection") ||
             lowerSubject.includes("delivery status notification") ||
-            lowerSubject.includes("undeliverable");
+            lowerSubject.includes("undeliverable") ||
+            sender?.toLowerCase().includes("mailer-daemon") ||
+            sender?.toLowerCase().includes("postmaster");
 
           // Simple cleanup: remove the "On ..., ... wrote:" quoted section if it exists
           if (bodyText.includes("\nOn ")) {

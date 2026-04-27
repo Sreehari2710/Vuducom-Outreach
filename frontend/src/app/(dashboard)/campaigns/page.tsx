@@ -17,6 +17,8 @@ function CampaignDetailsContent() {
   const [showRepliedOnly, setShowRepliedOnly] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   useEffect(() => {
     if (token && id) {
@@ -25,6 +27,10 @@ function CampaignDetailsContent() {
       return () => clearInterval(interval);
     }
   }, [token, id]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, showRepliedOnly]);
 
   const fetchCampaign = () => {
     fetch(`${API_BASE_URL}/api/campaigns/${id}`, {
@@ -121,47 +127,108 @@ function CampaignDetailsContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
-              {selectedCampaign.contacts
-                .filter((contact: any) => {
+               {(() => {
+                const filteredContacts = selectedCampaign.contacts.filter((contact: any) => {
                   const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
                   const matchesSearch = contact.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                        (contact.username || "").toLowerCase().includes(searchQuery.toLowerCase());
                   if (showRepliedOnly) return matchesSearch && emailLog?.status === 'REPLIED';
                   return matchesSearch;
-                })
-                .map((contact: any, idx: number) => {
-                  const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
-                  return (
-                    <tr key={contact.id} className="hover:bg-surface-container-low transition-colors duration-200">
-                    <td className="px-6 py-5 font-black text-xs text-slate-300 tracking-tighter">{String(idx + 1).padStart(2, '0')}</td>
-                    <td className="px-6 py-5">
-                       <div className="font-bold text-sm text-on-surface mb-0.5">{contact.email}</div>
-                       <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{contact.username || 'n/a'}</div>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                       <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase tracking-widest border border-current transition-all ${
-                         emailLog?.status === 'REPLIED' ? 'bg-tertiary-container/10 text-tertiary' : 
-                         emailLog?.status === 'SENDING' ? 'bg-primary/5 text-primary animate-pulse' :
-                         emailLog?.status === 'SENT' ? 'bg-slate-50 text-slate-400 border-slate-100' :
-                         'bg-error-container/10 text-error'
-                       }`}>
-                         {emailLog?.status || 'PENDING'}
-                       </span>
-                    </td>
-                    <td className="px-6 py-5 max-w-md">
-                       <div className="text-xs font-medium text-on-surface-variant italic leading-relaxed line-clamp-1">
-                          {emailLog?.replies?.length > 0 
-                            ? `"${emailLog.replies.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0].body}"` 
-                            : '---'
-                          }
-                       </div>
-                    </td>
-                  </tr>
+                });
+
+                const totalPages = Math.ceil(filteredContacts.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const paginatedContacts = filteredContacts.slice(startIndex, startIndex + itemsPerPage);
+
+                return (
+                  <>
+                    {paginatedContacts.map((contact: any, idx: number) => {
+                      const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
+                      return (
+                        <tr key={contact.id} className="hover:bg-surface-container-low transition-colors duration-200">
+                          <td className="px-6 py-5 font-black text-xs text-slate-300 tracking-tighter">{String(startIndex + idx + 1).padStart(2, '0')}</td>
+                          <td className="px-6 py-5">
+                            <div className="font-bold text-sm text-on-surface mb-0.5">{contact.email}</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{contact.username || 'n/a'}</div>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase tracking-widest border border-current transition-all ${
+                              emailLog?.status === 'REPLIED' ? 'bg-tertiary-container/10 text-tertiary' : 
+                              emailLog?.status === 'SENDING' ? 'bg-primary/5 text-primary animate-pulse' :
+                              emailLog?.status === 'SENT' ? 'bg-slate-50 text-slate-400 border-slate-100' :
+                              'bg-error-container/10 text-error'
+                            }`}>
+                              {emailLog?.status || 'PENDING'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-5 max-w-md">
+                            <div className="text-xs font-medium text-on-surface-variant italic leading-relaxed line-clamp-1">
+                               {emailLog?.replies?.length > 0 
+                                 ? `"${emailLog.replies.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0].body}"` 
+                                 : '---'
+                               }
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredContacts.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-20 text-center">
+                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No matching contacts found</p>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
-              })}
+              })()}
             </tbody>
          </table>
       </div>
+
+      {(() => {
+        const filteredContactsCount = selectedCampaign.contacts.filter((contact: any) => {
+          const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
+          const matchesSearch = contact.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                               (contact.username || "").toLowerCase().includes(searchQuery.toLowerCase());
+          if (showRepliedOnly) return matchesSearch && emailLog?.status === 'REPLIED';
+          return matchesSearch;
+        }).length;
+
+        const totalPages = Math.ceil(filteredContactsCount / itemsPerPage);
+
+        if (totalPages <= 1) return null;
+
+        return (
+          <div className="mt-8 flex items-center justify-between pb-10">
+            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+              Page {currentPage} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => {
+                  setCurrentPage(prev => Math.max(1, prev - 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-md bg-surface-container-low text-slate-400 hover:text-primary transition-all border border-outline-variant/10 disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined">chevron_left</span>
+              </button>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => {
+                  setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-md bg-surface-container-low text-slate-400 hover:text-primary transition-all border border-outline-variant/10 disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

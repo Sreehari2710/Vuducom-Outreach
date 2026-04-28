@@ -18,7 +18,7 @@ function CampaignDetailsContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   useEffect(() => {
     if (token && id) {
@@ -30,7 +30,7 @@ function CampaignDetailsContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, showRepliedOnly]);
+  }, [searchQuery, showRepliedOnly, itemsPerPage]);
 
   const fetchCampaign = () => {
     fetch(`${API_BASE_URL}/api/campaigns/${id}`, {
@@ -200,9 +200,27 @@ function CampaignDetailsContent() {
         if (totalPages <= 1) return null;
 
         return (
-          <div className="mt-8 flex items-center justify-between pb-10">
-            <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-              Page {currentPage} of {totalPages}
+          <div className="mt-8 flex flex-col md:flex-row items-center justify-between pb-10 gap-4">
+            <div className="flex items-center gap-8">
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                Page {currentPage} of {totalPages}
+              </div>
+              
+              <div className="hidden md:flex items-center gap-2">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Show:</span>
+                <div className="relative flex items-center">
+                  <select 
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="appearance-none bg-surface-container-low border border-outline-variant/10 rounded-sm pl-3 pr-8 py-1.5 text-[9px] font-black uppercase tracking-widest focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer transition-all hover:bg-surface-container-high"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="material-symbols-outlined absolute right-1.5 text-[14px] text-slate-400 pointer-events-none">expand_more</span>
+                </div>
+              </div>
             </div>
             <div className="flex gap-2">
               <button 

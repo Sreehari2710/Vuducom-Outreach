@@ -34,8 +34,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
             ...user, 
             hasSmtpConfigured: !!user?.smtpPassword 
         };
-        // @ts-ignore
-        delete responseData.smtpPassword; // Remove sensitive data after check
+        // We need to send the smtpPassword back so the user can see it when they toggle visibility
         res.json(responseData);
     } catch (error: any) {
         res.status(500).json({ error: error.message });

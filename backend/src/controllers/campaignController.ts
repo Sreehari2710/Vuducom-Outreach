@@ -146,6 +146,14 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
                 }
               });
             }
+
+            // --- RATE LIMIT PROTECTION ---
+            // Add a random delay between 4 to 8 seconds to prevent SMTP server (like Gmail) 
+            // from temporarily blocking the account for sending too many emails too quickly.
+            const delayMs = Math.floor(Math.random() * 4000) + 4000;
+            console.log(`[Campaign ${campaign.id}] Waiting ${delayMs}ms before next email...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+
           } catch (e) {
             console.error(`[Campaign ${campaign.id}] ERROR in send loop for ${contact.email}:`, e);
           }
@@ -246,4 +254,35 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
   
   res.attachment(`campaign_${id}_report.csv`);
   res.status(200).send(header + rows);
+};
+
+export const stopCampaign = async (req: AuthRequest, res: Response) => {
+  const id = req.params.id as string;
+  const userId = req.user?.userId;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const campaign = await prisma.campaign.findUnique({ where: { id, userId } });
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+
+    const result = await prisma.sentEmail.updateMany({
+      where: { campaignId: id, status: { in: ['QUEUED', 'SENDING'] } },
+      data: { status: 'CANCELLED' }
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: "Campaign Stopped",
+        message: `Campaign "${campaign.name}" has been stopped. ${result.count} pending emails were cancelled.`,
+        type: "INFO",
+        campaignId: campaign.id
+      }
+    });
+
+    res.status(200).json({ message: "Campaign stopped successfully", cancelledCount: result.count });
+  } catch (error: any) {
+    console.error(`[Campaign Stop Error for ${id}]:`, error);
+    res.status(500).json({ error: error.message });
+  }
 };

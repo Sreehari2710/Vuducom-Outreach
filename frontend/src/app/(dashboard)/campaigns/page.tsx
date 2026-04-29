@@ -19,6 +19,7 @@ function CampaignDetailsContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [isStopping, setIsStopping] = useState(false);
 
   useEffect(() => {
     if (token && id) {
@@ -65,6 +66,27 @@ function CampaignDetailsContent() {
     .finally(() => setIsRefreshing(false));
   };
 
+  const stopCampaign = () => {
+    if (isStopping || !window.confirm("Are you sure you want to stop this campaign? All queued emails will be cancelled.")) return;
+    setIsStopping(true);
+    showNotification("Stopping campaign...", "info");
+    
+    fetch(`${API_BASE_URL}/api/campaigns/${id}/stop`, { 
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      showNotification(data.message || "Campaign stopped", "success");
+      fetchCampaign();
+    })
+    .catch(err => showNotification("Failed to stop campaign", "error"))
+    .finally(() => setIsStopping(false));
+  };
+
   if (!id) {
     router.push("/dashboard");
     return null;
@@ -92,6 +114,22 @@ function CampaignDetailsContent() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
+          {selectedCampaign?.emails?.some((e: any) => e.status === 'QUEUED' || e.status === 'SENDING') && (
+            <button 
+              onClick={stopCampaign}
+              disabled={isStopping}
+              className={`flex-1 md:flex-none px-5 py-2.5 md:py-2 rounded-md font-black text-[10px] flex items-center justify-center gap-2 transition-all border uppercase tracking-widest ${
+                isStopping 
+                  ? 'bg-surface-container-high border-outline-variant/10 text-slate-300 cursor-not-allowed' 
+                  : 'bg-error/10 border-error text-error hover:bg-error hover:text-on-error'
+              }`}
+            >
+              <span className={`material-symbols-outlined text-[16px] ${isStopping ? 'animate-spin' : ''}`}>
+                {isStopping ? 'sync' : 'stop_circle'}
+              </span>
+              {isStopping ? 'Stopping...' : 'Stop Campaign'}
+            </button>
+          )}
           <button 
             onClick={() => setShowRepliedOnly(!showRepliedOnly)}
             className={`flex-1 md:flex-none px-5 py-2.5 md:py-2 rounded-md font-black text-[10px] flex items-center justify-center gap-2 transition-all border uppercase tracking-widest ${
@@ -156,6 +194,7 @@ function CampaignDetailsContent() {
                               emailLog?.status === 'REPLIED' ? 'bg-tertiary-container/10 text-tertiary' : 
                               emailLog?.status === 'SENDING' ? 'bg-primary/5 text-primary animate-pulse' :
                               emailLog?.status === 'SENT' ? 'bg-slate-50 text-slate-400 border-slate-100' :
+                              emailLog?.status === 'CANCELLED' ? 'bg-slate-800 text-slate-500 border-slate-700 opacity-70' :
                               'bg-error-container/10 text-error'
                             }`}>
                               {emailLog?.status || 'PENDING'}

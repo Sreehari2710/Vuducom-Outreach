@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign } from './controllers/campaignController';
+import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCampaign } from './controllers/campaignController';
 import { signup, signin } from './controllers/authController';
 import { getProfile, updateProfile, updateSettings } from './controllers/userController';
 import { authenticateToken, AuthRequest } from './middleware/authMiddleware';
@@ -111,6 +111,7 @@ app.get('/api/campaigns/:id', authenticateToken as any, async (req: AuthRequest,
   res.json(campaign);
 });
 app.delete('/api/campaigns/:id', authenticateToken as any, deleteCampaign as any);
+app.post('/api/campaigns/:id/stop', authenticateToken as any, stopCampaign as any);
 app.post('/api/campaigns', authenticateToken as any, createCampaign as any);
 app.get('/api/campaigns/check/:name', authenticateToken as any, async (req: AuthRequest, res) => {
   const name = req.params.name as string;

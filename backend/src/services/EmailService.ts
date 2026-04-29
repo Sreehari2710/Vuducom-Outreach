@@ -23,6 +23,9 @@ export class EmailService {
         user: smtpConfig.email,
         pass: smtpConfig.password,
       },
+      connectionTimeout: 10000, // 10 seconds timeout instead of hanging
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
     // @ts-ignore
     this.transporter.options.senderName = smtpConfig.senderName;

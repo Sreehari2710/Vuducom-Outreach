@@ -147,15 +147,24 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
               });
             }
 
-            // --- RATE LIMIT PROTECTION ---
-            // Add a random delay between 4 to 8 seconds to prevent SMTP server (like Gmail) 
-            // from temporarily blocking the account for sending too many emails too quickly.
-            const delayMs = Math.floor(Math.random() * 4000) + 4000;
-            console.log(`[Campaign ${campaign.id}] Waiting ${delayMs}ms before next email...`);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-
-          } catch (e) {
+          } catch (e: any) {
             console.error(`[Campaign ${campaign.id}] ERROR in send loop for ${contact.email}:`, e);
+            try {
+              // Ensure we don't leave it stuck in QUEUED or SENDING if the loop crashes
+              await prisma.sentEmail.updateMany({
+                where: { 
+                  campaignId: campaign.id, 
+                  recipient: contact.email, 
+                  status: { in: ['QUEUED', 'SENDING'] } 
+                },
+                data: { 
+                  status: 'FAILED',
+                  messageId: `failed-${Date.now()}-${contact.email}`
+                }
+              });
+            } catch (updateErr) {
+              console.error("Failed to update status on error:", updateErr);
+            }
           }
         }
         console.log(`[Campaign ${campaign.id}] Outreach batch complete.`);

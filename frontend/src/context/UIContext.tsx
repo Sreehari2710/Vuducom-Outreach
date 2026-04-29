@@ -46,10 +46,14 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const fetchActivities = () => {
     if (!token) return;
+    console.log("Fetching notifications from URL:", `${API_BASE_URL}/api/notifications`);
     fetch(`${API_BASE_URL}/api/notifications`, {
       headers: { "Authorization": `Bearer ${token}` }
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) console.error("Notification response not OK:", res.status);
+        return res.json();
+      })
       .then(data => setActivities(data))
       .catch(err => console.error("Notification fetch failed", err));
   };

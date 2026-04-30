@@ -14,7 +14,7 @@ function CampaignDetailsContent() {
   const router = useRouter();
 
   const [selectedCampaign, setSelectedCampaign] = useState<any | null>(null);
-  const [showRepliedOnly, setShowRepliedOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -31,7 +31,7 @@ function CampaignDetailsContent() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, showRepliedOnly, itemsPerPage]);
+  }, [searchQuery, statusFilter, itemsPerPage]);
 
   const fetchCampaign = () => {
     fetch(`${API_BASE_URL}/api/campaigns/${id}`, {
@@ -130,17 +130,22 @@ function CampaignDetailsContent() {
               {isStopping ? 'Stopping...' : 'Stop Campaign'}
             </button>
           )}
-          <button 
-            onClick={() => setShowRepliedOnly(!showRepliedOnly)}
-            className={`flex-1 md:flex-none px-5 py-2.5 md:py-2 rounded-md font-black text-[10px] flex items-center justify-center gap-2 transition-all border uppercase tracking-widest ${
-              showRepliedOnly 
-                ? 'bg-tertiary/10 border-tertiary text-tertiary' 
-                : 'bg-surface-container-low border-outline-variant/10 text-slate-500 hover:text-primary'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[16px]">{showRepliedOnly ? 'check_circle' : 'filter_list'}</span>
-            {showRepliedOnly ? 'Show All' : 'Responses'}
-          </button>
+          <div className="relative flex-1 md:flex-none flex items-center">
+            <span className="material-symbols-outlined absolute left-3 text-[16px] text-slate-400">filter_list</span>
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full appearance-none bg-surface-container-low border border-outline-variant/10 rounded-md pl-10 pr-10 py-2.5 md:py-2 text-[10px] font-black uppercase tracking-widest focus:ring-1 focus:ring-primary/20 focus:outline-none cursor-pointer transition-all hover:text-primary text-slate-500"
+            >
+              <option value="all">All Statuses</option>
+              <option value="REPLIED">Replied</option>
+              <option value="SENT">Sent</option>
+              <option value="QUEUED">Queued</option>
+              <option value="SENDING">Sending</option>
+              <option value="FAILED">Failed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
           <button 
             onClick={syncReplies}
             disabled={isRefreshing}
@@ -170,7 +175,10 @@ function CampaignDetailsContent() {
                   const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
                   const matchesSearch = contact.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                        (contact.username || "").toLowerCase().includes(searchQuery.toLowerCase());
-                  if (showRepliedOnly) return matchesSearch && emailLog?.status === 'REPLIED';
+                  if (statusFilter !== "all") {
+                    const actualStatus = emailLog?.status || 'PENDING';
+                    if (actualStatus !== statusFilter) return false;
+                  }
                   return matchesSearch;
                 });
 
@@ -230,7 +238,10 @@ function CampaignDetailsContent() {
           const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
           const matchesSearch = contact.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
                                (contact.username || "").toLowerCase().includes(searchQuery.toLowerCase());
-          if (showRepliedOnly) return matchesSearch && emailLog?.status === 'REPLIED';
+          if (statusFilter !== "all") {
+            const actualStatus = emailLog?.status || 'PENDING';
+            if (actualStatus !== statusFilter) return false;
+          }
           return matchesSearch;
         }).length;
 

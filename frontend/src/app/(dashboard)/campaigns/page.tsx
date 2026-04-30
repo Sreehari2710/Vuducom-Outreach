@@ -87,6 +87,48 @@ function CampaignDetailsContent() {
     .finally(() => setIsStopping(false));
   };
 
+  const downloadFilteredCSV = () => {
+    if (!selectedCampaign) return;
+
+    // Filter contacts based on current statusFilter and searchQuery
+    const filteredContacts = selectedCampaign.contacts.filter((contact: any) => {
+      const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
+      const matchesSearch = contact.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (contact.username || "").toLowerCase().includes(searchQuery.toLowerCase());
+      if (statusFilter !== "all") {
+        const actualStatus = emailLog?.status || 'PENDING';
+        if (actualStatus !== statusFilter) return false;
+      }
+      return matchesSearch;
+    });
+
+    if (filteredContacts.length === 0) {
+      showNotification("No data to download for the selected filter.", "warning");
+      return;
+    }
+
+    const header = "Email,Username,Status,Latest Reply\n";
+    const rows = filteredContacts.map((contact: any) => {
+      const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
+      let latestReply = '';
+      if (emailLog?.replies?.length > 0) {
+        latestReply = emailLog.replies.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0].body;
+        // Escape quotes for CSV
+        latestReply = latestReply.replace(/"/g, '""');
+      }
+      return `"${contact.email}","${contact.username || ''}","${emailLog?.status || 'PENDING'}","${latestReply}"`;
+    }).join('\n');
+
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${selectedCampaign.name}_${statusFilter}_report.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (!id) {
     router.push("/dashboard");
     return null;
@@ -155,6 +197,13 @@ function CampaignDetailsContent() {
           >
             <span className={`material-symbols-outlined text-sm ${isRefreshing ? 'animate-spin' : ''}`}>sync</span>
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
+          <button 
+            onClick={downloadFilteredCSV}
+            className={`flex-1 md:flex-none px-5 py-2.5 md:py-2 rounded-md font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-sm border border-outline-variant/10 bg-surface-container-low text-slate-600 hover:bg-surface-container-high hover:text-primary`}
+          >
+            <span className="material-symbols-outlined text-sm">download</span>
+            Download
           </button>
         </div>
       </div>

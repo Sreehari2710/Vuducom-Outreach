@@ -34,7 +34,14 @@ export default function DashboardPage() {
       headers: { "Authorization": `Bearer ${token}` }
     })
       .then((res) => res.json())
-      .then((data) => setCampaigns(data))
+      .then((data) => {
+        // Filter out CANCELLED emails so they don't count towards volume or engagement
+        const cleanedData = data.map((c: any) => ({
+          ...c,
+          emails: c.emails ? c.emails.filter((e: any) => e.status !== 'CANCELLED') : []
+        }));
+        setCampaigns(cleanedData);
+      })
       .catch(err => console.error("Fetch failed", err));
   };
 

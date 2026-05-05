@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCampaign } from './controllers/campaignController';
+import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCampaign, exportMultipleCampaigns } from './controllers/campaignController';
 import { signup, signin } from './controllers/authController';
 import { getProfile, updateProfile, updateSettings } from './controllers/userController';
 import { authenticateToken, AuthRequest } from './middleware/authMiddleware';
@@ -120,6 +120,7 @@ app.get('/api/campaigns/check/:name', authenticateToken as any, async (req: Auth
   res.json({ exists: !!existing });
 });
 app.get('/api/campaigns/:id/export', authenticateToken as any, getCampaignReport as any);
+app.post('/api/campaigns/export-multiple', authenticateToken as any, exportMultipleCampaigns as any);
 
 // Sync Replies
 app.post('/api/sync-replies', authenticateToken as any, async (req: AuthRequest, res) => {
@@ -132,13 +133,21 @@ app.post('/api/sync-replies', authenticateToken as any, async (req: AuthRequest,
         return res.status(400).json({ error: "SMTP_NOT_CONFIGURED" });
     }
 
-    const { campaignId } = req.body;
+    const { campaignId, campaignIds } = req.body;
     const { ReplyService } = require('./services/ReplyService');
     const replyService = new ReplyService({
         email: user.smtpEmail,
         password: user.smtpPassword
     });
-    await replyService.syncReplies(campaignId);
+    
+    if (campaignIds && Array.isArray(campaignIds)) {
+      for (const id of campaignIds) {
+        await replyService.syncReplies(id);
+      }
+    } else {
+      await replyService.syncReplies(campaignId);
+    }
+    
     res.json({ message: "Sync complete" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

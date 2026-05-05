@@ -6,6 +6,30 @@ import { useUI } from "@/context/UIContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/config";
 
+const formatCosts = (text: string) => {
+  if (!text) return text;
+  return text.replace(/(^|[^\d.+])(\d{1,3}(?:,\d{3})+|\d+)(?=[^\d.]|$)/g, (fullMatch, prefix, match) => {
+    let cleanMatch = match.replace(/,/g, '');
+    if (cleanMatch.length >= 4 && cleanMatch.length < 10) {
+      let num = parseInt(cleanMatch, 10);
+      if (num >= 1000) {
+         let kValue = num / 1000;
+         return prefix + kValue + 'k';
+      }
+    }
+    return fullMatch;
+  });
+};
+
+const escapeCSV = (val: string) => {
+  if (val === null || val === undefined) return '""';
+  const str = String(val);
+  if (/^\+?\d{10,}$/.test(str)) {
+    return `="${str}"`;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+};
+
 function CampaignDetailsContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
@@ -113,10 +137,9 @@ function CampaignDetailsContent() {
       let latestReply = '';
       if (emailLog?.replies?.length > 0) {
         latestReply = emailLog.replies.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0].body;
-        // Escape quotes for CSV
-        latestReply = latestReply.replace(/"/g, '""');
+        latestReply = formatCosts(latestReply);
       }
-      return `"${contact.email}","${contact.username || ''}","${emailLog?.status || 'PENDING'}","${latestReply}"`;
+      return `${escapeCSV(contact.email)},${escapeCSV(contact.username || '')},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(latestReply)}`;
     }).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });

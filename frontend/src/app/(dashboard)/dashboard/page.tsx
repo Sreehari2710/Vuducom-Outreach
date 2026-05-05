@@ -1,15 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/config";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { token, user } = useAuth();
   const { showNotification } = useUI();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isCampaignsTab = searchParams.get('tab') === 'campaigns';
 
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,6 +21,8 @@ export default function DashboardPage() {
   const [sortBy, setSortBy] = useState("newest");
   const [confirmDelete, setConfirmDelete] = useState<{id: string, type: 'campaign' | 'template'} | null>(null);
   const [dismissedWizard, setDismissedWizard] = useState(false);
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -94,9 +98,67 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedCampaignIds(new Set());
   }, [searchQuery, itemsPerPage, statusFilter, sortBy]);
 
   const totalSentCount = campaigns.reduce((acc, c) => acc + (c.emails?.length || 0), 0);
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedCampaignIds(new Set(paginatedCampaigns.map(c => c.id)));
+    } else {
+      setSelectedCampaignIds(new Set());
+    }
+  };
+
+  const toggleSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSet = new Set(selectedCampaignIds);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedCampaignIds(newSet);
+  };
+
+  const refreshCampaigns = async (ids?: string[]) => {
+    setIsRefreshing(true);
+    showNotification(`Refreshing ${ids ? ids.length + ' selected' : 'all'} campaigns...`, 'info');
+    try {
+      await fetch(`${API_BASE_URL}/api/sync-replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(ids ? { campaignIds: ids } : {})
+      });
+      showNotification('Refresh complete', 'success');
+      fetchCampaigns();
+    } catch (err) {
+      showNotification('Failed to refresh', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const downloadSelected = async () => {
+    if (selectedCampaignIds.size === 0) return;
+    try {
+      showNotification('Generating report...', 'info');
+      const res = await fetch(`${API_BASE_URL}/api/campaigns/export-multiple`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ campaignIds: Array.from(selectedCampaignIds) })
+      });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `campaigns_report.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      showNotification('Failed to download report', 'error');
+    }
+  };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -116,7 +178,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {campaigns.length === 0 && totalSentCount === 0 && !dismissedWizard && (
+      {!isCampaignsTab && campaigns.length === 0 && totalSentCount === 0 && !dismissedWizard && (
         <div className="vudu-card border-l-4 border-warning bg-warning/5 mb-10 overflow-hidden relative">
            <div className="relative z-10">
               <div className="flex items-center gap-4 mb-6">
@@ -186,7 +248,8 @@ export default function DashboardPage() {
       )}
 
       {/* Stats Ribbon */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-1 mb-8">
+      {!isCampaignsTab && (
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-1 mb-8">
          <div className="col-span-1 md:col-span-4 bg-surface-container-lowest p-4 rounded-lg flex flex-col justify-between h-28 border border-outline-variant/10 shadow-sm">
            <span className="text-[11px] font-bold uppercase text-slate-500 tracking-wider">Active Campaigns</span>
            <div className="flex items-end justify-between">
@@ -213,13 +276,30 @@ export default function DashboardPage() {
            <span className="material-symbols-outlined absolute -right-4 -bottom-4 text-8xl text-white/10 group-hover:scale-110 transition-transform duration-700" style={{ fontVariationSettings: "'FILL' 1" }}>public</span>
          </div>
       </div>
+      )}
 
       <div className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
          <h2 className="text-sm font-bold text-on-surface flex items-center gap-2 uppercase tracking-tight">
-            Recent Campaigns
+            {isCampaignsTab ? "All Campaigns" : "Recent Campaigns"}
             <span className="bg-surface-container-high text-on-surface-variant text-[10px] px-2 py-0.5 rounded font-black">{campaigns.length} TOTAL</span>
          </h2>
-         <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
+         <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
+            {selectedCampaignIds.size > 0 && (
+               <>
+                 <button onClick={() => refreshCampaigns(Array.from(selectedCampaignIds))} disabled={isRefreshing} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-sm transition-all flex items-center gap-1">
+                   <span className={`material-symbols-outlined text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}>sync</span>
+                   Refresh ({selectedCampaignIds.size})
+                 </button>
+                 <button onClick={downloadSelected} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-on-surface text-surface hover:bg-on-surface/90 rounded-sm transition-all flex items-center gap-1">
+                   <span className="material-symbols-outlined text-[14px]">download</span>
+                   Download ({selectedCampaignIds.size})
+                 </button>
+               </>
+            )}
+            <button onClick={() => refreshCampaigns()} disabled={isRefreshing} className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 text-slate-500 hover:text-primary rounded-sm transition-all flex items-center gap-1 bg-surface-container-low">
+              <span className={`material-symbols-outlined text-[14px] ${isRefreshing ? 'animate-spin' : ''}`}>sync</span>
+              Refresh All
+            </button>
             <div className="relative flex-1 md:flex-none flex items-center">
                <span className="material-symbols-outlined absolute left-3 text-sm text-slate-400">filter_list</span>
                <select 
@@ -250,7 +330,15 @@ export default function DashboardPage() {
         <table className="w-full text-left">
           <thead className="bg-surface-container-low border-b border-outline-variant/10 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
             <tr>
-              <th className="px-6 py-4">Campaign Name</th>
+              <th className="px-4 py-4 w-10">
+                <input 
+                  type="checkbox" 
+                  className="rounded-sm border-outline-variant/20 text-primary focus:ring-primary/20 cursor-pointer"
+                  checked={paginatedCampaigns.length > 0 && selectedCampaignIds.size === paginatedCampaigns.length}
+                  onChange={handleSelectAll}
+                />
+              </th>
+              <th className="px-4 py-4">Campaign Name</th>
               <th className="px-6 py-4 text-center">Saved Template</th>
               <th className="px-6 py-4 text-center">Volume Sent</th>
               <th className="px-6 py-4 text-center">Engagement Rate</th>
@@ -264,7 +352,15 @@ export default function DashboardPage() {
                 onClick={() => router.push(`/campaigns?id=${c.id}`)}
                 className="group hover:bg-surface-container-low transition-colors cursor-pointer"
               >
-                <td className="px-6 py-3 font-bold text-sm text-on-surface group-hover:text-primary transition-colors">{c.name}</td>
+                <td className="px-4 py-3" onClick={(e) => toggleSelection(c.id, e)}>
+                  <input 
+                    type="checkbox" 
+                    className="rounded-sm border-outline-variant/20 text-primary focus:ring-primary/20 cursor-pointer"
+                    checked={selectedCampaignIds.has(c.id)}
+                    readOnly
+                  />
+                </td>
+                <td className="px-4 py-3 font-bold text-sm text-on-surface group-hover:text-primary transition-colors">{c.name}</td>
                 <td className="px-6 py-3 text-center">
                   <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-black px-2 py-0.5 rounded tracking-tighter uppercase whitespace-nowrap">
                     {c.template?.name || "Deleted"}
@@ -299,7 +395,7 @@ export default function DashboardPage() {
             ))}
             {sortedCampaigns.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-24 text-center">
+                <td colSpan={6} className="py-24 text-center">
                     <p className="font-black text-[10px] uppercase tracking-widest mb-6 text-on-surface">No Data Found</p>
                 </td>
               </tr>
@@ -347,5 +443,13 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

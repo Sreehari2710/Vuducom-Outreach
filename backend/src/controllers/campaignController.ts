@@ -238,6 +238,30 @@ export const deleteCampaign = async (req: AuthRequest, res: Response) => {
   }
 };
 
+const formatCosts = (text: string) => {
+  if (!text) return text;
+  return text.replace(/(^|[^\d.+])(\d{1,3}(?:,\d{3})+|\d+)(?=[^\d.]|$)/g, (fullMatch, prefix, match) => {
+    let cleanMatch = match.replace(/,/g, '');
+    if (cleanMatch.length >= 4 && cleanMatch.length < 10) {
+      let num = parseInt(cleanMatch, 10);
+      if (num >= 1000) {
+         let kValue = num / 1000;
+         return prefix + kValue + 'k';
+      }
+    }
+    return fullMatch;
+  });
+};
+
+const escapeCSV = (val: string) => {
+  if (val === null || val === undefined) return '""';
+  const str = String(val);
+  if (/^\+?\d{10,}$/.test(str)) {
+    return `="${str}"`;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+};
+
 export const getCampaignReport = async (req: AuthRequest, res: Response) => {
   const id = req.params.id as string;
   const userId = req.user?.userId;
@@ -257,8 +281,9 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
     const sortedReplies = e.replies?.sort((a: any, b: any) => 
       new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
     );
-    const latestReply = sortedReplies?.[0]?.body?.replace(/"/g, '""') || '';
-    return `${e.recipient},${e.status},"${latestReply}"`;
+    let latestReply = sortedReplies?.[0]?.body || '';
+    latestReply = formatCosts(latestReply);
+    return `${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(latestReply)}`;
   }).join('\n');
   
   res.attachment(`campaign_${id}_report.csv`);
@@ -295,3 +320,36 @@ export const stopCampaign = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { campaignIds } = req.body;
+  if (!campaignIds || !Array.isArray(campaignIds)) {
+    return res.status(400).json({ error: "campaignIds array is required" });
+  }
+
+  const emails = await prisma.sentEmail.findMany({
+    where: { 
+        campaignId: { in: campaignIds },
+        campaign: { userId }
+    },
+    include: { replies: true, campaign: true }
+  }) as any[];
+
+  const header = "Campaign,Email,Status,Reply\n";
+  const rows = emails.map(e => {
+    const sortedReplies = e.replies?.sort((a: any, b: any) => 
+      new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+    );
+    let latestReply = sortedReplies?.[0]?.body || '';
+    latestReply = formatCosts(latestReply);
+    
+    return `${escapeCSV(e.campaign?.name || 'Unknown')},${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(latestReply)}`;
+  }).join('\n');
+  
+  res.attachment(`campaigns_report.csv`);
+  res.status(200).send(header + rows);
+};
+

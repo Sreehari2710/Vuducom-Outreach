@@ -1,12 +1,49 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import ProfileSettings from "@/components/ProfileSettings";
 import { API_BASE_URL } from "@/config";
+
+function SidebarNav({ setIsMobileMenuOpen }: { setIsMobileMenuOpen: (val: boolean) => void }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isCampaignsTab = searchParams.get('tab') === 'campaigns';
+  
+  const isDashboardActive = pathname === '/dashboard' && !isCampaignsTab;
+  const isCampaignsActive = pathname.startsWith('/campaigns') || isCampaignsTab;
+
+  return (
+    <nav className="flex flex-col w-full" onClick={() => setIsMobileMenuOpen(false)}>
+      <Link 
+        href="/dashboard"
+        className={`flex items-center py-4 px-6 gap-4 transition-all active:scale-95 ${isDashboardActive ? 'text-primary border-l-4 border-primary bg-white' : 'text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
+      >
+        <span className="material-symbols-outlined" style={{ fontVariationSettings: isDashboardActive ? "'FILL' 1" : "" }}>grid_view</span>
+        <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Dashboard</span>
+      </Link>
+
+      <Link 
+        href="/templates"
+        className={`flex items-center py-4 px-6 gap-4 transition-all active:scale-95 ${pathname === '/templates' ? 'text-primary border-l-4 border-primary bg-white' : 'text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
+      >
+        <span className="material-symbols-outlined" style={{ fontVariationSettings: pathname === '/templates' ? "'FILL' 1" : "" }}>description</span>
+        <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Templates</span>
+      </Link>
+
+      <Link 
+        href="/dashboard?tab=campaigns"
+        className={`flex items-center py-4 px-6 gap-4 transition-all active:scale-95 ${isCampaignsActive ? 'text-primary border-l-4 border-primary bg-white' : 'text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
+      >
+        <span className="material-symbols-outlined" style={{ fontVariationSettings: isCampaignsActive ? "'FILL' 1" : "" }}>campaign</span>
+        <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Campaigns</span>
+      </Link>
+    </nav>
+  );
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, user, authLoading, logout, updateUser } = useAuth();
@@ -92,31 +129,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
              </Link>
           </div>
 
-          <nav className="flex flex-col w-full" onClick={() => setIsMobileMenuOpen(false)}>
-            <Link 
-              href="/dashboard"
-              className={`flex items-center py-4 px-6 gap-4 transition-all active:scale-95 ${pathname === '/dashboard' ? 'text-primary border-l-4 border-primary bg-white' : 'text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: pathname === '/dashboard' ? "'FILL' 1" : "" }}>grid_view</span>
-              <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Dashboard</span>
-            </Link>
-
-            <Link 
-              href="/templates"
-              className={`flex items-center py-4 px-6 gap-4 transition-all active:scale-95 ${pathname === '/templates' ? 'text-primary border-l-4 border-primary bg-white' : 'text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: pathname === '/templates' ? "'FILL' 1" : "" }}>description</span>
-              <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Templates</span>
-            </Link>
-
-            <Link 
-              href="/dashboard?tab=campaigns"
-              className={`flex items-center py-4 px-6 gap-4 transition-all active:scale-95 ${pathname.startsWith('/campaigns') ? 'text-primary border-l-4 border-primary bg-white' : 'text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: pathname.startsWith('/campaigns') ? "'FILL' 1" : "" }}>campaign</span>
-              <span className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">Campaigns</span>
-            </Link>
-          </nav>
+          <Suspense fallback={<div className="p-6 text-[10px] text-slate-400">Loading...</div>}>
+            <SidebarNav setIsMobileMenuOpen={setIsMobileMenuOpen} />
+          </Suspense>
         </div>
       </aside>
 

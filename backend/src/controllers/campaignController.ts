@@ -279,11 +279,11 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
   const rows = emails.map(e => {
     // Sort replies to get the most recent one
     const sortedReplies = e.replies?.sort((a: any, b: any) => 
-      new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+      new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
     );
-    let latestReply = sortedReplies?.[0]?.body || '';
-    latestReply = formatCosts(latestReply);
-    return `${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(latestReply)}`;
+    let allReplies = sortedReplies?.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join('\n\n') || '';
+    allReplies = formatCosts(allReplies);
+    return `${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(allReplies)}`;
   }).join('\n');
   
   res.attachment(`campaign_${id}_report.csv`);
@@ -341,12 +341,12 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
   const header = "Campaign,Email,Status,Reply\n";
   const rows = emails.map(e => {
     const sortedReplies = e.replies?.sort((a: any, b: any) => 
-      new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()
+      new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
     );
-    let latestReply = sortedReplies?.[0]?.body || '';
-    latestReply = formatCosts(latestReply);
+    let allReplies = sortedReplies?.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join('\n\n') || '';
+    allReplies = formatCosts(allReplies);
     
-    return `${escapeCSV(e.campaign?.name || 'Unknown')},${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(latestReply)}`;
+    return `${escapeCSV(e.campaign?.name || 'Unknown')},${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(allReplies)}`;
   }).join('\n');
   
   res.attachment(`campaigns_report.csv`);

@@ -131,15 +131,16 @@ function CampaignDetailsContent() {
       return;
     }
 
-    const header = "Email,Username,Status,Latest Reply\n";
+    const header = "Email,Username,Status,Conversation\n";
     const rows = filteredContacts.map((contact: any) => {
       const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
-      let latestReply = '';
+      let allReplies = '';
       if (emailLog?.replies?.length > 0) {
-        latestReply = emailLog.replies.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0].body;
-        latestReply = formatCosts(latestReply);
+        allReplies = emailLog.replies.sort((a: any, b: any) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime())
+          .map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
+        allReplies = formatCosts(allReplies);
       }
-      return `${escapeCSV(contact.email)},${escapeCSV(contact.username || '')},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(latestReply)}`;
+      return `${escapeCSV(contact.email)},${escapeCSV(contact.username || '')},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(allReplies)}`;
     }).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
@@ -238,7 +239,7 @@ function CampaignDetailsContent() {
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500 w-16">#</th>
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500">Contact Details</th>
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500 text-center">Status</th>
-                 <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500">Latest Interaction</th>
+                 <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500">Conversation / Replies</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
@@ -281,10 +282,20 @@ function CampaignDetailsContent() {
                             </span>
                           </td>
                           <td className="px-6 py-5 max-w-md">
-                            <div className="text-xs font-medium text-on-surface-variant italic leading-relaxed line-clamp-1">
+                            <div className="flex flex-col gap-3">
                                {emailLog?.replies?.length > 0 
-                                 ? `"${emailLog.replies.sort((a: any, b: any) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())[0].body}"` 
-                                 : '---'
+                                 ? emailLog.replies.sort((a: any, b: any) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()).map((r: any, i: number) => (
+                                     <div key={i} className="bg-surface-container-low p-3 rounded-md border border-outline-variant/10">
+                                       <div className="text-[10px] text-primary font-black uppercase tracking-widest mb-1.5 flex justify-between">
+                                          <span>{r.sender}</span>
+                                          <span className="text-slate-500">{new Date(r.receivedAt).toLocaleString()}</span>
+                                       </div>
+                                       <div className="text-xs font-medium text-on-surface-variant leading-relaxed whitespace-pre-wrap">
+                                         {formatCosts(r.body)}
+                                       </div>
+                                     </div>
+                                   ))
+                                 : <span className="text-xs font-medium text-on-surface-variant italic leading-relaxed line-clamp-1">---</span>
                                }
                             </div>
                           </td>

@@ -41,3 +41,8 @@ Thumbs.db
 
 # Prisma generated files
 backend/prisma/generated/
+
+# Distribution artifacts
+release/
+*.zip
+Vuducom-Outreach-Windows-App/

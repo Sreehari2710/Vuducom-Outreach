@@ -276,23 +276,42 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
   }) as any[];
 
   // Calculate frequency in this selection
-  const emailCounts = emails.reduce((acc: any, e: any) => {
+  // Group emails by recipient to consolidate data
+  const groupedEmails = emails.reduce((acc: any, e: any) => {
+    if (!acc[e.recipient]) {
+      acc[e.recipient] = {
+        recipient: e.recipient,
+        validSends: 0,
+        allReplies: [] as any[],
+        statuses: new Set()
+      };
+    }
     if (e.status !== 'FAILED' && e.status !== 'CANCELLED') {
-      acc[e.recipient] = (acc[e.recipient] || 0) + 1;
+      acc[e.recipient].validSends += 1;
+    }
+    acc[e.recipient].statuses.add(e.status);
+    if (e.replies && e.replies.length > 0) {
+      acc[e.recipient].allReplies.push(...e.replies);
     }
     return acc;
   }, {});
 
-  const header = "Email,Status,Times in Selection,Reply\n";
-  const rows = emails.map(e => {
-    // Sort replies to get the most recent one
-    const sortedReplies = e.replies?.sort((a: any, b: any) => 
+  const header = "Email,Times in Selection,Status,All Replies\n";
+  const rows = Object.values(groupedEmails).map((group: any) => {
+    let primaryStatus = 'PENDING';
+    if (group.statuses.has('REPLIED')) primaryStatus = 'REPLIED';
+    else if (group.statuses.has('SENT')) primaryStatus = 'SENT';
+    else if (group.statuses.has('QUEUED') || group.statuses.has('SENDING')) primaryStatus = 'QUEUED';
+    else if (group.statuses.has('FAILED')) primaryStatus = 'FAILED';
+    else if (group.statuses.has('CANCELLED')) primaryStatus = 'CANCELLED';
+
+    const sortedReplies = group.allReplies.sort((a: any, b: any) => 
       new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
     );
-    let allReplies = sortedReplies?.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join('\n\n') || '';
-    allReplies = formatCosts(allReplies);
-    const count = emailCounts[e.recipient] || 1;
-    return `${escapeCSV(e.recipient)},${escapeCSV(e.status)},${count},${escapeCSV(allReplies)}`;
+    let allRepliesFormatted = sortedReplies.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
+    allRepliesFormatted = formatCosts(allRepliesFormatted);
+    
+    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(primaryStatus)},${escapeCSV(allRepliesFormatted)}`;
   }).join('\n');
   
   res.attachment(`campaign_${id}_report.csv`);
@@ -348,23 +367,53 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
   }) as any[];
 
   // Calculate frequency in this selection
-  const emailCounts = emails.reduce((acc: any, e: any) => {
-    if (e.status !== 'FAILED' && e.status !== 'CANCELLED') {
-      acc[e.recipient] = (acc[e.recipient] || 0) + 1;
+  // Group emails by recipient to consolidate data
+  const groupedEmails = emails.reduce((acc: any, e: any) => {
+    if (!acc[e.recipient]) {
+      acc[e.recipient] = {
+        recipient: e.recipient,
+        campaigns: new Set(),
+        validSends: 0,
+        allReplies: [] as any[],
+        statuses: new Set()
+      };
     }
+    
+    if (e.campaign?.name) {
+      acc[e.recipient].campaigns.add(e.campaign.name);
+    }
+    
+    if (e.status !== 'FAILED' && e.status !== 'CANCELLED') {
+      acc[e.recipient].validSends += 1;
+    }
+    
+    acc[e.recipient].statuses.add(e.status);
+    
+    if (e.replies && e.replies.length > 0) {
+      acc[e.recipient].allReplies.push(...e.replies);
+    }
+    
     return acc;
   }, {});
 
-  const header = "Campaign,Email,Status,Times in Selection,Reply\n";
-  const rows = emails.map(e => {
-    const sortedReplies = e.replies?.sort((a: any, b: any) => 
+  const header = "Email,Times in Selection,Campaigns,Status,All Replies\n";
+  const rows = Object.values(groupedEmails).map((group: any) => {
+    let primaryStatus = 'PENDING';
+    if (group.statuses.has('REPLIED')) primaryStatus = 'REPLIED';
+    else if (group.statuses.has('SENT')) primaryStatus = 'SENT';
+    else if (group.statuses.has('QUEUED') || group.statuses.has('SENDING')) primaryStatus = 'QUEUED';
+    else if (group.statuses.has('FAILED')) primaryStatus = 'FAILED';
+    else if (group.statuses.has('CANCELLED')) primaryStatus = 'CANCELLED';
+
+    const sortedReplies = group.allReplies.sort((a: any, b: any) => 
       new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
     );
-    let allReplies = sortedReplies?.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join('\n\n') || '';
-    allReplies = formatCosts(allReplies);
-    const count = emailCounts[e.recipient] || 1;
+    let allRepliesFormatted = sortedReplies.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
+    allRepliesFormatted = formatCosts(allRepliesFormatted);
     
-    return `${escapeCSV(e.campaign?.name || 'Unknown')},${escapeCSV(e.recipient)},${escapeCSV(e.status)},${count},${escapeCSV(allReplies)}`;
+    const campaignsStr = Array.from(group.campaigns).join('; ');
+
+    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(campaignsStr)},${escapeCSV(primaryStatus)},${escapeCSV(allRepliesFormatted)}`;
   }).join('\n');
   
   res.attachment(`campaigns_report.csv`);

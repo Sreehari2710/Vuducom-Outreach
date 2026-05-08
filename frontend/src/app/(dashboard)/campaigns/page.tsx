@@ -131,7 +131,7 @@ function CampaignDetailsContent() {
       return;
     }
 
-    const header = "Email,Username,Status,Times Contacted,Conversation\n";
+    const header = "Email,Times in Selection,Status,All Replies\n";
     const rows = filteredContacts.map((contact: any) => {
       const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
       let allReplies = '';
@@ -141,7 +141,7 @@ function CampaignDetailsContent() {
         allReplies = formatCosts(allReplies);
       }
       const count = selectedCampaign.globalCounts?.[contact.email] || (emailLog?.status === 'FAILED' || emailLog?.status === 'CANCELLED' ? 0 : 1);
-      return `${escapeCSV(contact.email)},${escapeCSV(contact.username || '')},${escapeCSV(emailLog?.status || 'PENDING')},${count},${escapeCSV(allReplies)}`;
+      return `${escapeCSV(contact.email)},${count},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(allReplies)}`;
     }).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });

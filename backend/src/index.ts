@@ -109,7 +109,29 @@ app.get('/api/campaigns/:id', authenticateToken as any, async (req: AuthRequest,
       emails: { include: { replies: true } }
     }
   });
-  res.json(campaign);
+
+  if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+
+  // Calculate global frequency for these recipients across all user campaigns
+  const recipients = campaign.emails.map(e => e.recipient);
+  const globalCounts = await prisma.sentEmail.groupBy({
+    by: ['recipient'],
+    where: {
+      recipient: { in: recipients },
+      status: { notIn: ['FAILED', 'CANCELLED'] },
+      campaign: { userId }
+    },
+    _count: {
+      recipient: true
+    }
+  });
+
+  const countMap = globalCounts.reduce((acc: any, curr) => {
+    acc[curr.recipient] = curr._count.recipient;
+    return acc;
+  }, {});
+
+  res.json({ ...campaign, globalCounts: countMap });
 });
 app.delete('/api/campaigns/:id', authenticateToken as any, deleteCampaign as any);
 app.post('/api/campaigns/:id/stop', authenticateToken as any, stopCampaign as any);

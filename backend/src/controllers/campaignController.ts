@@ -275,7 +275,15 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
     include: { replies: true }
   }) as any[];
 
-  const header = "Email,Status,Reply\n";
+  // Calculate frequency in this selection
+  const emailCounts = emails.reduce((acc: any, e: any) => {
+    if (e.status !== 'FAILED' && e.status !== 'CANCELLED') {
+      acc[e.recipient] = (acc[e.recipient] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const header = "Email,Status,Times in Selection,Reply\n";
   const rows = emails.map(e => {
     // Sort replies to get the most recent one
     const sortedReplies = e.replies?.sort((a: any, b: any) => 
@@ -283,7 +291,8 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
     );
     let allReplies = sortedReplies?.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join('\n\n') || '';
     allReplies = formatCosts(allReplies);
-    return `${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(allReplies)}`;
+    const count = emailCounts[e.recipient] || 1;
+    return `${escapeCSV(e.recipient)},${escapeCSV(e.status)},${count},${escapeCSV(allReplies)}`;
   }).join('\n');
   
   res.attachment(`campaign_${id}_report.csv`);
@@ -338,15 +347,24 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
     include: { replies: true, campaign: true }
   }) as any[];
 
-  const header = "Campaign,Email,Status,Reply\n";
+  // Calculate frequency in this selection
+  const emailCounts = emails.reduce((acc: any, e: any) => {
+    if (e.status !== 'FAILED' && e.status !== 'CANCELLED') {
+      acc[e.recipient] = (acc[e.recipient] || 0) + 1;
+    }
+    return acc;
+  }, {});
+
+  const header = "Campaign,Email,Status,Times in Selection,Reply\n";
   const rows = emails.map(e => {
     const sortedReplies = e.replies?.sort((a: any, b: any) => 
       new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime()
     );
     let allReplies = sortedReplies?.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join('\n\n') || '';
     allReplies = formatCosts(allReplies);
+    const count = emailCounts[e.recipient] || 1;
     
-    return `${escapeCSV(e.campaign?.name || 'Unknown')},${escapeCSV(e.recipient)},${escapeCSV(e.status)},${escapeCSV(allReplies)}`;
+    return `${escapeCSV(e.campaign?.name || 'Unknown')},${escapeCSV(e.recipient)},${escapeCSV(e.status)},${count},${escapeCSV(allReplies)}`;
   }).join('\n');
   
   res.attachment(`campaigns_report.csv`);

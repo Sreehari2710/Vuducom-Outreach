@@ -131,7 +131,7 @@ function CampaignDetailsContent() {
       return;
     }
 
-    const header = "Email,Username,Status,Conversation\n";
+    const header = "Email,Username,Status,Times Contacted,Conversation\n";
     const rows = filteredContacts.map((contact: any) => {
       const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
       let allReplies = '';
@@ -140,7 +140,8 @@ function CampaignDetailsContent() {
           .map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
         allReplies = formatCosts(allReplies);
       }
-      return `${escapeCSV(contact.email)},${escapeCSV(contact.username || '')},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(allReplies)}`;
+      const count = selectedCampaign.globalCounts?.[contact.email] || (emailLog?.status === 'FAILED' || emailLog?.status === 'CANCELLED' ? 0 : 1);
+      return `${escapeCSV(contact.email)},${escapeCSV(contact.username || '')},${escapeCSV(emailLog?.status || 'PENDING')},${count},${escapeCSV(allReplies)}`;
     }).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
@@ -241,6 +242,7 @@ function CampaignDetailsContent() {
               <tr>
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500 w-16">#</th>
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500">Contact Details</th>
+                 <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500 text-center">Times Used</th>
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500 text-center">Status</th>
                  <th className="px-6 py-4 font-black text-[9px] uppercase tracking-widest text-slate-500">Conversation / Replies</th>
               </tr>
@@ -272,6 +274,11 @@ function CampaignDetailsContent() {
                           <td className="px-6 py-5">
                             <div className="font-bold text-sm text-on-surface mb-0.5">{contact.email}</div>
                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{contact.username || 'n/a'}</div>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <span className="text-[11px] font-black text-slate-600 bg-surface-container-high px-2 py-0.5 rounded-sm">
+                              {selectedCampaign.globalCounts?.[contact.email] || (emailLog?.status === 'FAILED' || emailLog?.status === 'CANCELLED' ? 0 : 1)}x
+                            </span>
                           </td>
                           <td className="px-6 py-5 text-center">
                             <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase tracking-widest border border-current transition-all ${
@@ -307,7 +314,7 @@ function CampaignDetailsContent() {
                     })}
                     {filteredContacts.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="py-20 text-center">
+                        <td colSpan={5} className="py-20 text-center">
                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No matching contacts found</p>
                         </td>
                       </tr>

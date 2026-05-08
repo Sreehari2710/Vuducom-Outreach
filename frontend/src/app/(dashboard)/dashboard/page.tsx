@@ -339,6 +339,7 @@ function DashboardContent() {
                 />
               </th>
               <th className="px-4 py-4">Campaign Name</th>
+              <th className="px-6 py-4 text-center">Date Initialized</th>
               <th className="px-6 py-4 text-center">Saved Template</th>
               <th className="px-6 py-4 text-center">Volume Sent</th>
               <th className="px-6 py-4 text-center">Engagement Rate</th>
@@ -361,6 +362,11 @@ function DashboardContent() {
                   />
                 </td>
                 <td className="px-4 py-3 font-bold text-sm text-on-surface group-hover:text-primary transition-colors">{c.name}</td>
+                <td className="px-6 py-3 text-center">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    {new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                </td>
                 <td className="px-6 py-3 text-center">
                   <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-black px-2 py-0.5 rounded tracking-tighter uppercase whitespace-nowrap">
                     {c.template?.name || "Deleted"}
@@ -395,7 +401,7 @@ function DashboardContent() {
             ))}
             {sortedCampaigns.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-24 text-center">
+                <td colSpan={7} className="py-24 text-center">
                     <p className="font-black text-[10px] uppercase tracking-widest mb-6 text-on-surface">No Data Found</p>
                 </td>
               </tr>

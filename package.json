@@ -1,13 +1,55 @@
 {
   "name": "vuducom-outreach-pro",
   "version": "1.0.0",
+  "main": "electron-main.js",
   "scripts": {
     "install:all": "cd frontend && npm install && cd ../backend && npm install",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\""
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "build:all": "npm run build:frontend && npm run build:backend",
+    "electron:start": "npm run build:all && electron .",
+    "electron:pack": "npm run build:all && electron-builder --win -c.extraMetadata.main=electron-main.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "electron": "^29.1.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.vuducom.outreach",
+    "productName": "Vuducom Outreach",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron-main.js",
+      "frontend/out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!src",
+          "!*.ts"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true
+    }
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }

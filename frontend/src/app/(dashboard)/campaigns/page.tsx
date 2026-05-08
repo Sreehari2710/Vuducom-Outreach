@@ -177,6 +177,9 @@ function CampaignDetailsContent() {
           </button>
           <div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-on-surface truncate max-w-[200px] md:max-w-none">{selectedCampaign.name}</h1>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
+              Initialized on {new Date(selectedCampaign.createdAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">

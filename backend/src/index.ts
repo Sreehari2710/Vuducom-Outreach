@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCampaign, exportMultipleCampaigns } from './controllers/campaignController';
 import { signup, signin } from './controllers/authController';
 import { getProfile, updateProfile, updateSettings } from './controllers/userController';
@@ -212,6 +213,15 @@ app.delete('/api/notifications', authenticateToken as any, async (req: AuthReque
   } catch (error: any) {
     res.status(500).json({ error: "Failed to clear notifications" });
   }
+});
+
+// Serve Next.js frontend in production/packaged mode
+const frontendPath = process.env.FRONTEND_PATH || path.join(__dirname, '../../frontend/out');
+app.use(express.static(frontendPath, { extensions: ['html'] }));
+
+// Catch-all for non-API routes to serve the Next.js 404.html (for client-side routing)
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.status(404).sendFile(path.join(frontendPath, '404.html'));
 });
 
 app.listen(port, '0.0.0.0', () => {

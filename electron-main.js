@@ -49,10 +49,10 @@ function createWindow() {
   const maxAttempts = 60; // 30 seconds
 
   const checkServer = () => {
-    http.get(\`http://127.0.0.1:\${dynamicPort}/api/health\`, (res) => {
+    http.get(`http://127.0.0.1:${dynamicPort}/api/health`, (res) => {
       if (res.statusCode === 200) {
         console.log('Backend is ready, loading app...');
-        mainWindow.loadURL(\`http://127.0.0.1:\${dynamicPort}\`);
+        mainWindow.loadURL(`http://127.0.0.1:${dynamicPort}`);
       } else {
         retry();
       }
@@ -123,14 +123,14 @@ app.whenReady().then(async () => {
       } catch (err) {
         console.error('CRITICAL: Failed to load backend script:', err);
         if (mainWindow) {
-          mainWindow.webContents.executeJavaScript(\`
-            document.body.innerHTML = \\\`
+          mainWindow.webContents.executeJavaScript(`
+            document.body.innerHTML = \`
               <div style="padding: 20px; font-family: monospace; color: #ff6b6b; background: #1a1a1a; height: 100vh; overflow: auto;">
                 <h2>Backend Crash Report</h2>
-                <pre style="white-space: pre-wrap;">\\\${\${JSON.stringify(err.stack || err.message || String(err))}}\\\</pre>
+                <pre style="white-space: pre-wrap;">\${${JSON.stringify(err.stack || err.message || String(err))}}</pre>
               </div>
-            \\\`;
-          \`);
+            \`;
+          `);
         }
       }
     }, 500);

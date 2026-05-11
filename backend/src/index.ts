@@ -6,6 +6,17 @@ import { signup, signin } from './controllers/authController';
 import { getProfile, updateProfile, updateSettings } from './controllers/userController';
 import { authenticateToken, AuthRequest } from './middleware/authMiddleware';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+
+// Prevent fatal crashes in production
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 
 const app = express();
 const port = Number(process.env.PORT) || 8000;
@@ -239,10 +250,33 @@ app.delete('/api/notifications', authenticateToken as any, async (req: AuthReque
 
 // Serve Next.js frontend in production/packaged mode
 const frontendPath = process.env.FRONTEND_PATH || path.join(__dirname, '../../frontend/out');
-app.use(express.static(frontendPath, { extensions: ['html'] }));
 
-// Catch-all for non-API routes to serve the Next.js 404.html (for client-side routing)
+// Serve static assets, but disable redirects to prevent conflicts with Next.js folder structures (e.g. /dashboard vs /dashboard/)
+app.use(express.static(frontendPath, { redirect: false }));
+
+// Catch-all for non-API routes to serve the correct HTML file or fallback to 404
 app.get(/^(?!\/api).*/, (req, res) => {
+  // Clean path to remove trailing slashes
+  const cleanPath = req.path.endsWith('/') && req.path.length > 1 ? req.path.slice(0, -1) : req.path;
+  
+  // 1. Try to find the exact .html file (e.g., /dashboard -> dashboard.html)
+  const htmlPath = path.join(frontendPath, `${cleanPath}.html`);
+  if (fs.existsSync(htmlPath)) {
+    return res.sendFile(htmlPath);
+  }
+  
+  // 2. Try to find an index.html inside a directory (e.g., /dashboard/index.html)
+  const indexPath = path.join(frontendPath, cleanPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    return res.sendFile(indexPath);
+  }
+
+  // 3. If root is requested and somehow not caught
+  if (req.path === '/') {
+    return res.sendFile(path.join(frontendPath, 'index.html'));
+  }
+
+  // 4. Fallback to 404
   res.status(404).sendFile(path.join(frontendPath, '404.html'));
 });
 

@@ -1,8 +1,9 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const net = require('net');
+const fs = require('fs');
 
 let mainWindow;
 let backendProcess;
@@ -28,7 +29,8 @@ function createWindow() {
     height: 800,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     },
     autoHideMenuBar: true,
   });
@@ -149,5 +151,39 @@ app.on('window-all-closed', function () {
 app.on('quit', () => {
   if (backendProcess) {
     backendProcess.kill();
+  }
+});
+
+// Authentication Persistence Handlers
+const getAuthPath = () => path.join(app.getPath('userData'), 'vudu_auth.json');
+
+ipcMain.on('save-auth', (event, data) => {
+  try {
+    fs.writeFileSync(getAuthPath(), JSON.stringify(data));
+  } catch (err) {
+    console.error('Failed to save auth:', err);
+  }
+});
+
+ipcMain.handle('get-auth', () => {
+  try {
+    const authPath = getAuthPath();
+    if (fs.existsSync(authPath)) {
+      return JSON.parse(fs.readFileSync(authPath, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Failed to get auth:', err);
+  }
+  return null;
+});
+
+ipcMain.on('clear-auth', () => {
+  try {
+    const authPath = getAuthPath();
+    if (fs.existsSync(authPath)) {
+      fs.unlinkSync(authPath);
+    }
+  } catch (err) {
+    console.error('Failed to clear auth:', err);
   }
 });

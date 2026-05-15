@@ -1,6 +1,8 @@
 import { ImapFlow } from 'imapflow';
 import { PrismaClient } from '@prisma/client';
 import { simpleParser } from 'mailparser';
+import { decrypt } from '../utils/crypto';
+
 
 const prisma = new PrismaClient();
 
@@ -14,12 +16,12 @@ export class ReplyService {
       secure: true,
       auth: {
         user: config.email,
-        pass: config.password,
+        pass: decrypt(config.password),
       },
     });
   }
 
-  async syncReplies(campaignId?: string) {
+  async syncReplies(campaignId: string | undefined, userId: string) {
     await this.client.connect();
     
     // Select Inbox
@@ -29,9 +31,15 @@ export class ReplyService {
       let sinceDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default fallback
 
       if (campaignId) {
-        const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+        const campaign = await prisma.campaign.findUnique({ 
+            where: { id: campaignId, userId } 
+        });
         if (campaign) {
           sinceDate = campaign.createdAt;
+        } else {
+          // If a campaignId was provided but not found for this user, abort to prevent cross-user sync
+          console.error(`[Sync] Unauthorized campaign access attempt: ${campaignId} by user ${userId}`);
+          return;
         }
       }
 
@@ -51,7 +59,10 @@ export class ReplyService {
         if (inReplyTo) {
           // Always perform a global lookup to establish the absolute truth
           const exactParent = await prisma.sentEmail.findFirst({
-            where: { messageId: inReplyTo },
+            where: { 
+                messageId: inReplyTo,
+                campaign: { userId } // Enforce ownership
+            },
             include: { campaign: { include: { template: true } } }
           });
 
@@ -77,6 +88,7 @@ export class ReplyService {
              where: { 
                 recipient: sender,
                 status: 'SENT',
+                campaign: { userId }, // Enforce ownership
                 ...(campaignId ? { campaignId } : {})
              },
              orderBy: { sentAt: 'desc' },

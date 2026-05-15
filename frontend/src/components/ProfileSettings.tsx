@@ -46,10 +46,10 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
          setSmtp({ 
            senderName: data.senderName || "", 
            smtpEmail: data.smtpEmail || "", 
-           smtpPassword: data.smtpPassword || "" 
+           smtpPassword: "" 
          });
-         // Lock if password exists
-         if (data.smtpPassword) setIsPasswordLocked(true);
+         // Lock if password is configured
+         if (data.hasSmtpConfigured) setIsPasswordLocked(true);
       }
     } catch (err) {
       console.error("Failed to fetch profile", err);
@@ -245,7 +245,7 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
                   <div className="relative group/passwd">
                     <input
                       type={showPassword ? "text" : "password"}
-                      value={smtp.smtpPassword}
+                      value={isPasswordLocked && !smtp.smtpPassword ? "****************" : smtp.smtpPassword}
                       readOnly={isPasswordLocked}
                       onChange={(e) => setSmtp({ ...smtp, smtpPassword: e.target.value })}
                       placeholder="•••• •••• •••• ••••"

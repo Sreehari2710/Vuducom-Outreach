@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { encrypt } from '../utils/crypto';
+
 
 const prisma = new PrismaClient();
 
@@ -25,16 +27,20 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
                 name: true,
                 senderName: true,
                 smtpEmail: true,
-                smtpPassword: true,
+                smtpPassword: true, // Still need to check if exists, but we won't return it
                 role: true,
                 createdAt: true
             }
         });
+
+        if (!user) return res.status(404).json({ error: "User not found" });
+
+        const { smtpPassword, ...safeUser } = user;
         const responseData = { 
-            ...user, 
-            hasSmtpConfigured: !!user?.smtpPassword 
+            ...safeUser, 
+            hasSmtpConfigured: !!smtpPassword 
         };
-        // We need to send the smtpPassword back so the user can see it when they toggle visibility
+        // We no longer send the plaintext password back for security reasons
         res.json(responseData);
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -71,7 +77,7 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
         const updateData: any = { senderName, smtpEmail };
         if (smtpPassword && smtpPassword.trim() !== '') {
-            updateData.smtpPassword = smtpPassword;
+            updateData.smtpPassword = encrypt(smtpPassword);
         }
 
         const user = await prisma.user.update({

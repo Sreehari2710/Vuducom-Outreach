@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { EmailService } from '../services/EmailService';
 import { AuthRequest } from '../middleware/authMiddleware';
+import { decrypt } from '../utils/crypto';
 
 const prisma = new PrismaClient();
 
@@ -72,7 +73,7 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
         server: "smtp.gmail.com", // Keeping gmail default for now since it was hardcoded earlier
         port: 465,
         email: user.smtpEmail,
-        password: user.smtpPassword,
+        password: decrypt(user.smtpPassword),
         senderName: user.senderName || user.name || "Vuducom Outreach"
     });
     const template = await prisma.template.findUnique({ where: { id: templateId, userId } });

@@ -198,15 +198,23 @@ app.post('/api/sync-replies', authenticateToken as any, async (req: AuthRequest,
     
     if (campaignIds && Array.isArray(campaignIds)) {
       for (const id of campaignIds) {
-        await replyService.syncReplies(id);
+        await replyService.syncReplies(id, userId);
       }
     } else {
-      await replyService.syncReplies(campaignId);
+      await replyService.syncReplies(campaignId, userId);
     }
     
     res.json({ message: "Sync complete" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    let errorMessage = err.message;
+    if (err.authenticationFailed) {
+      errorMessage = "IMAP Authentication Failed. Please check your App Password in Settings.";
+    } else if (err.responseText) {
+      errorMessage = err.responseText;
+    } else if (errorMessage === "Command failed") {
+      errorMessage = "IMAP connection failed. Please verify your email settings.";
+    }
+    res.status(500).json({ error: errorMessage });
   }
 });
 

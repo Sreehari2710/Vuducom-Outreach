@@ -4,6 +4,16 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "../config";
 
+declare global {
+  interface Window {
+    electronAPI?: {
+      saveAuth: (token: string, user: any) => void;
+      getAuth: () => Promise<{ token: string; user: any } | null>;
+      clearAuth: () => void;
+    };
+  }
+}
+
 interface User {
   id: string;
   email: string;
@@ -30,31 +40,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("vudu_auth_token");
-    const savedUser = localStorage.getItem("vudu_user");
+    const initializeAuth = async () => {
+      let savedToken = localStorage.getItem("vudu_auth_token");
+      let savedUser = localStorage.getItem("vudu_user");
 
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-
-      // Verify and sync profile
-      fetch(`${API_BASE_URL}/api/user/profile`, {
-        headers: { "Authorization": `Bearer ${savedToken}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (!data.error) {
-          const updatedUser = { ...data, hasSmtpConfigured: true };
-          setUser(updatedUser);
-          localStorage.setItem("vudu_user", JSON.stringify(updatedUser));
+      // Try Electron bridge as primary source of truth if available
+      if (window.electronAPI) {
+        try {
+          const electronAuth = await window.electronAPI.getAuth();
+          if (electronAuth) {
+            savedToken = electronAuth.token;
+            savedUser = JSON.stringify(electronAuth.user);
+            
+            // Sync to localStorage for redundancy/internal use
+            localStorage.setItem("vudu_auth_token", savedToken);
+            localStorage.setItem("vudu_user", savedUser);
+          }
+        } catch (err) {
+          console.error("Failed to load from Electron bridge", err);
         }
-      })
-      .catch(err => console.error("Auth sync failed", err))
-      .finally(() => setAuthLoading(false));
-    } else {
-      setAuthLoading(false);
-    }
+      }
+
+      if (savedToken && savedUser) {
+        setToken(savedToken);
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+
+        // Verify and sync profile
+        fetch(`${API_BASE_URL}/api/user/profile`, {
+          headers: { "Authorization": `Bearer ${savedToken}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.error) {
+            const updatedUser = { ...data, hasSmtpConfigured: true };
+            setUser(updatedUser);
+            localStorage.setItem("vudu_user", JSON.stringify(updatedUser));
+            
+            if (window.electronAPI) {
+              window.electronAPI.saveAuth(savedToken!, updatedUser);
+            }
+          }
+        })
+        .catch(err => console.error("Auth sync failed", err))
+        .finally(() => setAuthLoading(false));
+      } else {
+        setAuthLoading(false);
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -62,6 +97,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(newUser);
     localStorage.setItem("vudu_auth_token", newToken);
     localStorage.setItem("vudu_user", JSON.stringify(newUser));
+    
+    if (window.electronAPI) {
+      window.electronAPI.saveAuth(newToken, newUser);
+    }
   };
 
   const logout = () => {
@@ -69,12 +108,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     localStorage.removeItem("vudu_auth_token");
     localStorage.removeItem("vudu_user");
+    
+    if (window.electronAPI) {
+      window.electronAPI.clearAuth();
+    }
+    
     router.push("/login");
   };
 
   const updateUser = (updatedUser: User) => {
     setUser(updatedUser);
     localStorage.setItem("vudu_user", JSON.stringify(updatedUser));
+    
+    if (window.electronAPI && token) {
+      window.electronAPI.saveAuth(token, updatedUser);
+    }
   };
 
   return (

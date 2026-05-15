@@ -123,15 +123,18 @@ function DashboardContent() {
     setIsRefreshing(true);
     showNotification(`Refreshing ${ids ? ids.length + ' selected' : 'all'} campaigns...`, 'info');
     try {
-      await fetch(`${API_BASE_URL}/api/sync-replies`, {
+      const res = await fetch(`${API_BASE_URL}/api/sync-replies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', "Authorization": `Bearer ${token}` },
         body: JSON.stringify(ids ? { campaignIds: ids } : {})
       });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Sync failed");
+      
       showNotification('Refresh complete', 'success');
       fetchCampaigns();
-    } catch (err) {
-      showNotification('Failed to refresh', 'error');
+    } catch (err: any) {
+      showNotification(err.message || 'Failed to refresh', 'error');
     } finally {
       setIsRefreshing(false);
     }

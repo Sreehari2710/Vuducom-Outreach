@@ -81,12 +81,16 @@ function CampaignDetailsContent() {
       },
       body: JSON.stringify({ campaignId: id })
     })
-    .then(res => res.json())
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Sync failed");
+      return data;
+    })
     .then(data => {
       showNotification(data.message || "Sync complete", "success");
       fetchCampaign();
     })
-    .catch(err => showNotification("Sync failed", "error"))
+    .catch(err => showNotification(err.message || "Sync failed", "error"))
     .finally(() => setIsRefreshing(false));
   };
 

@@ -202,6 +202,16 @@ export const getCampaigns = async (req: AuthRequest, res: Response) => {
     data: { status: 'FAILED' }
   });
 
+  // Janitor Service: Auto-fail stale "QUEUED" records (> 2 days)
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  await prisma.sentEmail.updateMany({
+    where: {
+      status: 'QUEUED',
+      sentAt: { lt: twoDaysAgo }
+    },
+    data: { status: 'FAILED' }
+  });
+
   const campaigns = await prisma.campaign.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },

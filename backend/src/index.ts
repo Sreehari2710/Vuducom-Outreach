@@ -112,6 +112,28 @@ app.get('/api/campaigns/:id', authenticateToken as any, async (req: AuthRequest,
   const id = req.params.id as string;
   const userId = req.user?.userId;
 
+  // Janitor Service: Auto-fail stale "SENDING" records (> 30 mins) for this campaign
+  const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+  await prisma.sentEmail.updateMany({
+    where: {
+      campaignId: id,
+      status: 'SENDING',
+      sentAt: { lt: thirtyMinsAgo }
+    },
+    data: { status: 'FAILED' }
+  });
+
+  // Janitor Service: Auto-fail stale "QUEUED" records (> 2 days) for this campaign
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+  await prisma.sentEmail.updateMany({
+    where: {
+      campaignId: id,
+      status: 'QUEUED',
+      sentAt: { lt: twoDaysAgo }
+    },
+    data: { status: 'FAILED' }
+  });
+
   const campaign = await prisma.campaign.findUnique({
     where: { id, userId },
     include: {

@@ -117,7 +117,7 @@ app.whenReady().then(async () => {
         
         // Pass the frontend path so the backend knows where to serve static files from
         process.env.FRONTEND_PATH = isPackaged
-          ? path.join(process.resourcesPath, 'app.asar', 'frontend', 'out')
+          ? path.join(process.resourcesPath, 'frontend')
           : path.join(__dirname, 'frontend', 'out');
 
         console.log('Loading backend from:', backendPath, 'on port:', dynamicPort);

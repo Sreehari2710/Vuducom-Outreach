@@ -21,12 +21,13 @@
   "build": {
     "appId": "com.vuducom.outreach",
     "productName": "Vuducom Outreach",
+    "compression": "normal",
     "directories": {
       "output": "release"
     },
     "files": [
       "electron-main.js",
-      "frontend/out/**/*"
+      "preload.js"
     ],
     "extraResources": [
       {
@@ -34,13 +35,27 @@
         "to": "backend",
         "filter": [
           "**/*",
-          "!src",
-          "!*.ts"
+          "!src/**",
+          "!*.ts",
+          "!**/prebuilds/linux-*/**",
+          "!**/prebuilds/darwin-*/**",
+          "!**/*.map",
+          "!**/test/**",
+          "!**/tests/**",
+          "!**/docs/**"
         ]
+      },
+      {
+        "from": "frontend/out",
+        "to": "frontend"
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": true,

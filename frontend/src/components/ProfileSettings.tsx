@@ -247,7 +247,7 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
                       type={showPassword ? "text" : "password"}
                       value={isPasswordLocked && !smtp.smtpPassword ? "****************" : smtp.smtpPassword}
                       readOnly={isPasswordLocked}
-                      onChange={(e) => setSmtp({ ...smtp, smtpPassword: e.target.value })}
+                      onChange={(e) => setSmtp({ ...smtp, smtpPassword: e.target.value.replace(/\s+/g, '') })}
                       placeholder="•••• •••• •••• ••••"
                       className={`w-full bg-surface-container-low/50 pl-4 pr-12 py-3 text-sm font-bold focus:outline-none transition-all border-b ${isPasswordLocked ? 'border-transparent text-slate-400 cursor-not-allowed' : 'border-primary text-on-surface'}`}
                     />

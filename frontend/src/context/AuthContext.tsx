@@ -70,19 +70,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetch(`${API_BASE_URL}/api/user/profile`, {
           headers: { "Authorization": `Bearer ${savedToken}` }
         })
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Auth sync failed with status ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
-          if (!data.error) {
-            const updatedUser = { ...data, hasSmtpConfigured: true };
+          if (data && !data.error) {
+            const { refreshedToken, ...userProfile } = data;
+            const updatedUser = { ...userProfile, hasSmtpConfigured: true };
+            const updatedToken = refreshedToken || savedToken;
+            
+            setToken(updatedToken);
+            localStorage.setItem("vudu_auth_token", updatedToken!);
             setUser(updatedUser);
             localStorage.setItem("vudu_user", JSON.stringify(updatedUser));
             
             if (window.electronAPI) {
-              window.electronAPI.saveAuth(savedToken!, updatedUser);
+              window.electronAPI.saveAuth(updatedToken!, updatedUser);
             }
+          } else {
+            console.warn("Authentication invalid or expired on profile check", data?.error);
+            logout();
           }
         })
-        .catch(err => console.error("Auth sync failed", err))
+        .catch(err => {
+          console.error("Auth sync failed", err);
+          // If it's a HTTP error (e.g. 401 or 403), log out immediately.
+          // Do not log out for generic network fetch errors so offline usage or startup connection hiccups don't kick users out.
+          if (err.message && err.message.includes("status")) {
+            logout();
+          }
+        })
         .finally(() => setAuthLoading(false));
       } else {
         setAuthLoading(false);

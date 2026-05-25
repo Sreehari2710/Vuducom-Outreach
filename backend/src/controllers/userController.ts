@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { encrypt } from '../utils/crypto';
 
 
 const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-vuducom';
 
 // Add this type for the authenticated requests
 interface AuthRequest extends Request {
@@ -35,10 +37,17 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
 
         if (!user) return res.status(404).json({ error: "User not found" });
 
+        const refreshedToken = jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
         const { smtpPassword, ...safeUser } = user;
         const responseData = { 
             ...safeUser, 
-            hasSmtpConfigured: !!smtpPassword 
+            hasSmtpConfigured: !!smtpPassword,
+            refreshedToken
         };
         // We no longer send the plaintext password back for security reasons
         res.json(responseData);
@@ -77,7 +86,9 @@ export const updateSettings = async (req: AuthRequest, res: Response) => {
 
         const updateData: any = { senderName, smtpEmail };
         if (smtpPassword && smtpPassword.trim() !== '') {
-            updateData.smtpPassword = encrypt(smtpPassword);
+            // Clean up password: strip all spaces/whitespace (e.g. Google App Passwords "abcd efgh ijkl mnop" -> "abcdefghijklmnop")
+            const cleanPassword = smtpPassword.replace(/\s+/g, '');
+            updateData.smtpPassword = encrypt(cleanPassword);
         }
 
         const user = await prisma.user.update({

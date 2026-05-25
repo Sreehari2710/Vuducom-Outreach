@@ -284,7 +284,7 @@ const frontendPath = process.env.FRONTEND_PATH || path.join(__dirname, '../../fr
 // Serve static assets, but disable redirects to prevent conflicts with Next.js folder structures (e.g. /dashboard vs /dashboard/)
 app.use(express.static(frontendPath, { redirect: false }));
 
-// Catch-all for non-API routes to serve the correct HTML file or fallback to 404
+// Catch-all for non-API routes to serve the correct HTML file or fallback to index.html (SPA)
 app.get(/^(?!\/api).*/, (req, res) => {
   // Clean path to remove trailing slashes
   const cleanPath = req.path.endsWith('/') && req.path.length > 1 ? req.path.slice(0, -1) : req.path;
@@ -301,12 +301,19 @@ app.get(/^(?!\/api).*/, (req, res) => {
     return res.sendFile(indexPath);
   }
 
-  // 3. If root is requested and somehow not caught
+  // 3. If root is requested
   if (req.path === '/') {
     return res.sendFile(path.join(frontendPath, 'index.html'));
   }
 
-  // 4. Fallback to 404
+  // 4. Fallback: serve index.html so the Next.js client-side router handles the route.
+  //    This prevents 404 errors when the user hard-refreshes on a sub-route like /dashboard.
+  const rootIndex = path.join(frontendPath, 'index.html');
+  if (fs.existsSync(rootIndex)) {
+    return res.sendFile(rootIndex);
+  }
+
+  // 5. Last resort 404
   res.status(404).sendFile(path.join(frontendPath, '404.html'));
 });
 

@@ -307,7 +307,7 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
     return acc;
   }, {});
 
-  const header = "Email,Times in Selection,Status,All Replies\n";
+  const header = "Email,Times in Selection,Status,Replied Date,All Replies\n";
   const rows = Object.values(groupedEmails).map((group: any) => {
     let primaryStatus = 'PENDING';
     if (group.statuses.has('REPLIED')) primaryStatus = 'REPLIED';
@@ -322,7 +322,11 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
     let allRepliesFormatted = sortedReplies.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
     allRepliesFormatted = formatCosts(allRepliesFormatted);
     
-    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(primaryStatus)},${escapeCSV(allRepliesFormatted)}`;
+    const repliedDateFormatted = sortedReplies.length > 0 
+      ? sortedReplies.map((r: any) => new Date(r.receivedAt).toLocaleString()).join(' | ')
+      : '';
+    
+    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(primaryStatus)},${escapeCSV(repliedDateFormatted)},${escapeCSV(allRepliesFormatted)}`;
   }).join('\n');
   
   res.attachment(`campaign_${id}_report.csv`);
@@ -407,7 +411,7 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
     return acc;
   }, {});
 
-  const header = "Email,Times in Selection,Campaigns,Status,All Replies\n";
+  const header = "Email,Times in Selection,Campaigns,Status,Replied Date,All Replies\n";
   const rows = Object.values(groupedEmails).map((group: any) => {
     let primaryStatus = 'PENDING';
     if (group.statuses.has('REPLIED')) primaryStatus = 'REPLIED';
@@ -422,9 +426,13 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
     let allRepliesFormatted = sortedReplies.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
     allRepliesFormatted = formatCosts(allRepliesFormatted);
     
+    const repliedDateFormatted = sortedReplies.length > 0 
+      ? sortedReplies.map((r: any) => new Date(r.receivedAt).toLocaleString()).join(' | ')
+      : '';
+
     const campaignsStr = Array.from(group.campaigns).join('; ');
 
-    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(campaignsStr)},${escapeCSV(primaryStatus)},${escapeCSV(allRepliesFormatted)}`;
+    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(campaignsStr)},${escapeCSV(primaryStatus)},${escapeCSV(repliedDateFormatted)},${escapeCSV(allRepliesFormatted)}`;
   }).join('\n');
   
   res.attachment(`campaigns_report.csv`);

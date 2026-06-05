@@ -46,10 +46,10 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
          setSmtp({ 
            senderName: data.senderName || "", 
            smtpEmail: data.smtpEmail || "", 
-           smtpPassword: "" 
+           smtpPassword: data.smtpPassword || "" 
          });
-         // Lock if password is configured
-         if (data.hasSmtpConfigured) setIsPasswordLocked(true);
+         // Lock by default only if SMTP password already configured
+         setIsPasswordLocked(!!data.hasSmtpConfigured);
       }
     } catch (err) {
       console.error("Failed to fetch profile", err);
@@ -88,13 +88,20 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
     setLoading(true);
     setMessage(null);
     try {
+      const payload: any = {
+        senderName: smtp.senderName,
+        smtpEmail: smtp.smtpEmail,
+      };
+      if (!isPasswordLocked) {
+        payload.smtpPassword = smtp.smtpPassword;
+      }
       const res = await fetch(`${API_BASE_URL}/api/user/settings`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}` 
         },
-        body: JSON.stringify(smtp)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
@@ -245,7 +252,7 @@ export default function ProfileSettings({ token, onClose, onUpdate }: ProfileSet
                   <div className="relative group/passwd">
                     <input
                       type={showPassword ? "text" : "password"}
-                      value={isPasswordLocked && !smtp.smtpPassword ? "****************" : smtp.smtpPassword}
+                      value={smtp.smtpPassword}
                       readOnly={isPasswordLocked}
                       onChange={(e) => setSmtp({ ...smtp, smtpPassword: e.target.value.replace(/\s+/g, '') })}
                       placeholder="•••• •••• •••• ••••"

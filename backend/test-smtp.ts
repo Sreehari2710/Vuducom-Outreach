@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { EmailService } from './src/services/EmailService';
+import { decrypt } from './src/utils/crypto';
 
 const prisma = new PrismaClient();
 
@@ -18,7 +19,7 @@ async function testSMTP() {
     server: "smtp.gmail.com",
     port: 465,
     email: user.smtpEmail || "",
-    password: user.smtpPassword || "",
+    password: decrypt(user.smtpPassword || ""),
     senderName: "Test"
   });
 

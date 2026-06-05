@@ -21,24 +21,37 @@ export class ReplyService {
     });
   }
 
-  async syncReplies(campaignId: string | undefined, userId: string) {
+  async syncReplies(campaignIdOrIds: string | string[] | undefined, userId: string) {
     await this.client.connect();
     
     // Select Inbox
     const lock = await this.client.getMailboxLock('INBOX');
     try {
-      // Dynamic Campaign Timeline: Only scan emails starting from the exact second the campaign was created
+      // Dynamic Campaign Timeline: Only scan emails starting from the exact second the oldest campaign was created
       let sinceDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Default fallback
 
-      if (campaignId) {
-        const campaign = await prisma.campaign.findUnique({ 
-            where: { id: campaignId, userId } 
-        });
-        if (campaign) {
-          sinceDate = campaign.createdAt;
+      let filterCampaignIds: string[] | undefined = undefined;
+      if (campaignIdOrIds) {
+        if (Array.isArray(campaignIdOrIds)) {
+          filterCampaignIds = campaignIdOrIds;
         } else {
-          // If a campaignId was provided but not found for this user, abort to prevent cross-user sync
-          console.error(`[Sync] Unauthorized campaign access attempt: ${campaignId} by user ${userId}`);
+          filterCampaignIds = [campaignIdOrIds];
+        }
+      }
+
+      if (filterCampaignIds && filterCampaignIds.length > 0) {
+        const campaigns = await prisma.campaign.findMany({
+          where: {
+            id: { in: filterCampaignIds },
+            userId
+          }
+        });
+        if (campaigns.length > 0) {
+          const createdDates = campaigns.map(c => c.createdAt.getTime());
+          sinceDate = new Date(Math.min(...createdDates));
+          filterCampaignIds = campaigns.map(c => c.id);
+        } else {
+          console.error(`[Sync] No campaigns found for the given IDs: ${filterCampaignIds.join(', ')} for user ${userId}`);
           return;
         }
       }
@@ -67,8 +80,8 @@ export class ReplyService {
           });
 
           if (exactParent) {
-            // Target Isolation: If we are syncing a specific campaign, ignore replies belonging to others
-            if (campaignId && exactParent.campaignId !== campaignId) {
+            // Target Isolation: If we are syncing specific campaigns, ignore replies belonging to others
+            if (filterCampaignIds && !filterCampaignIds.includes(exactParent.campaignId)) {
                continue; 
             }
             parentEmail = exactParent;
@@ -89,7 +102,7 @@ export class ReplyService {
                 recipient: sender,
                 status: 'SENT',
                 campaign: { userId }, // Enforce ownership
-                ...(campaignId ? { campaignId } : {})
+                ...(filterCampaignIds ? { campaignId: { in: filterCampaignIds } } : {})
              },
              orderBy: { sentAt: 'desc' },
              include: { campaign: { include: { template: true } } }

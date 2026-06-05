@@ -1,7 +1,9 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCampaign, exportMultipleCampaigns } from './controllers/campaignController';
+import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCampaign, exportMultipleCampaigns, resumeCampaigns } from './controllers/campaignController';
 import { signup, signin } from './controllers/authController';
 import { getProfile, updateProfile, updateSettings } from './controllers/userController';
 import { authenticateToken, AuthRequest } from './middleware/authMiddleware';
@@ -147,22 +149,32 @@ app.get('/api/campaigns/:id', authenticateToken as any, async (req: AuthRequest,
 
   // Calculate global frequency for these recipients across all user campaigns
   const recipients = campaign.emails.map(e => e.recipient);
-  const globalCounts = await prisma.sentEmail.groupBy({
-    by: ['recipient'],
-    where: {
-      recipient: { in: recipients },
-      status: { notIn: ['FAILED', 'CANCELLED'] },
-      campaign: { userId }
-    },
-    _count: {
-      recipient: true
-    }
-  });
+  let countMap: Record<string, number> = {};
 
-  const countMap = globalCounts.reduce((acc: any, curr) => {
-    acc[curr.recipient] = curr._count.recipient;
-    return acc;
-  }, {});
+  if (recipients.length > 0) {
+    const userCampaigns = await prisma.campaign.findMany({
+      where: { userId },
+      select: { id: true }
+    });
+    const campaignIds = userCampaigns.map(c => c.id);
+
+    const globalCounts = await prisma.sentEmail.groupBy({
+      by: ['recipient'],
+      where: {
+        recipient: { in: recipients },
+        status: { notIn: ['FAILED', 'CANCELLED'] },
+        campaignId: { in: campaignIds }
+      },
+      _count: {
+        recipient: true
+      }
+    });
+
+    countMap = globalCounts.reduce((acc: any, curr) => {
+      acc[curr.recipient] = curr._count.recipient;
+      return acc;
+    }, {});
+  }
 
   res.json({ ...campaign, globalCounts: countMap });
 });
@@ -196,13 +208,7 @@ app.post('/api/sync-replies', authenticateToken as any, async (req: AuthRequest,
         password: user.smtpPassword
     });
     
-    if (campaignIds && Array.isArray(campaignIds)) {
-      for (const id of campaignIds) {
-        await replyService.syncReplies(id, userId);
-      }
-    } else {
-      await replyService.syncReplies(campaignId, userId);
-    }
+    await replyService.syncReplies(campaignIds || campaignId, userId);
     
     res.json({ message: "Sync complete" });
   } catch (err: any) {
@@ -281,6 +287,26 @@ app.delete('/api/notifications', authenticateToken as any, async (req: AuthReque
 // Serve Next.js frontend in production/packaged mode
 const frontendPath = process.env.FRONTEND_PATH || path.join(__dirname, '../../frontend/out');
 
+// Rewrite Next.js prefetch (.txt) paths to map nested directory structures
+app.use((req, res, next) => {
+  if (req.path.includes('__next.!')) {
+    const match = req.path.match(/^(.*\/__next\.![a-zA-Z0-9_=-]+)\.(.*)$/);
+    if (match) {
+      const prefix = match[1];
+      const rest = match[2];
+      const parts = rest.split('.');
+      if (parts.length > 1) {
+        const ext = parts.pop();
+        const restPath = parts.join('/');
+        const newPath = `${prefix}/${restPath}.${ext}`;
+        console.log(`[Next.js RSC Rewrite] Rewriting ${req.url} -> ${newPath}`);
+        req.url = newPath + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+      }
+    }
+  }
+  next();
+});
+
 // Serve static assets, but disable redirects to prevent conflicts with Next.js folder structures (e.g. /dashboard vs /dashboard/)
 app.use(express.static(frontendPath, { redirect: false }));
 
@@ -288,6 +314,12 @@ app.use(express.static(frontendPath, { redirect: false }));
 app.get(/^(?!\/api).*/, (req, res) => {
   // Clean path to remove trailing slashes
   const cleanPath = req.path.endsWith('/') && req.path.length > 1 ? req.path.slice(0, -1) : req.path;
+  
+  // If requesting a static asset that does not exist, return a 404 immediately to avoid parsing HTML as JS/CSS
+  const ext = path.extname(cleanPath);
+  if (ext && ext.toLowerCase() !== '.html') {
+    return res.status(404).send('Asset not found');
+  }
   
   // 1. Try to find the exact .html file (e.g., /dashboard -> dashboard.html)
   const htmlPath = path.join(frontendPath, `${cleanPath}.html`);
@@ -316,6 +348,24 @@ app.get(/^(?!\/api).*/, (req, res) => {
   // 5. Last resort 404
   res.status(404).sendFile(path.join(frontendPath, '404.html'));
 });
+
+// Startup Janitor: Clean up stuck SENDING records from interrupted sessions
+(async () => {
+  try {
+    const result = await prisma.sentEmail.updateMany({
+      where: { status: 'SENDING' },
+      data: { status: 'FAILED' }
+    });
+    if (result.count > 0) {
+      console.log(`[Startup Cleanup] Marked ${result.count} interrupted 'SENDING' emails as 'FAILED'.`);
+    }
+
+    // Auto-resume interrupted campaigns with QUEUED emails
+    await resumeCampaigns();
+  } catch (err) {
+    console.error('[Startup Cleanup] Failed to clean up stuck emails:', err);
+  }
+})();
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Backend server running on http://0.0.0.0:${port} (IPv4 bound)`);

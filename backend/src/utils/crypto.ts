@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import crypto from 'crypto';
 
 const ENCRYPTION_KEY = process.env.JWT_SECRET || 'vuducom-fallback-encryption-key-32-chars-long!!';

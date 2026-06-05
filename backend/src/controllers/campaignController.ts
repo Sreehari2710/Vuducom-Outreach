@@ -6,6 +6,8 @@ import { decrypt } from '../utils/crypto';
 
 const prisma = new PrismaClient();
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const createCampaign = async (req: AuthRequest, res: Response) => {
   const { name, templateId, contacts } = req.body;
   const userId = req.user?.userId;
@@ -51,136 +53,32 @@ export const createCampaign = async (req: AuthRequest, res: Response) => {
     });
 
     // 2. Pre-initialize SentEmail records as 'QUEUED' or 'FAILED' (if invalid format)
+    const sentEmailRecords: { contact: any; recordId: string }[] = [];
     for (const contact of contacts) {
       try {
         const isValid = EmailService.isValidEmail(contact.email);
-        await prisma.sentEmail.create({
+        const record = await prisma.sentEmail.create({
           data: {
-            messageId: isValid ? `queued-${campaign.id}-${contact.email}-${Date.now()}` : `invalid-${campaign.id}-${contact.email}-${Date.now()}`,
+            messageId: isValid 
+              ? `queued-${campaign.id}-${contact.email}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` 
+              : `invalid-${campaign.id}-${contact.email}-${Date.now()}`,
             recipient: contact.email,
             username: contact.username,
             status: isValid ? 'QUEUED' : 'FAILED',
             campaignId: campaign.id,
           }
         });
+        if (isValid) {
+          sentEmailRecords.push({ contact, recordId: record.id });
+        }
       } catch (logErr) {
         console.error("Failed to init log for:", contact.email);
       }
     }
 
     // 3. Start sending emails (async-background)
-    const emailService = new EmailService({
-        server: "smtp.gmail.com", // Keeping gmail default for now since it was hardcoded earlier
-        port: 465,
-        email: user.smtpEmail,
-        password: decrypt(user.smtpPassword),
-        senderName: user.senderName || user.name || "Vuducom Outreach"
-    });
-    const template = await prisma.template.findUnique({ where: { id: templateId, userId } });
-
-    if (template) {
-      console.log(`[Campaign ${campaign.id}] Starting outreach engine for ${contacts.length} contacts...`);
-      (async () => {
-        for (const contact of contacts) {
-          try {
-            // Re-verify status and format before sending
-            const currentRecord = await prisma.sentEmail.findFirst({
-                where: { campaignId: campaign.id, recipient: contact.email }
-            });
-
-            if (!currentRecord || currentRecord.status !== 'QUEUED') {
-                console.log(`[Campaign ${campaign.id}] Skipping ${contact.email} (Status: ${currentRecord?.status || 'NOT_FOUND'})`);
-                continue;
-            }
-
-            console.log(`[Campaign ${campaign.id}] Personalizing for ${contact.email}...`);
-            const contactCustomData = contact.customData || {};
-            const personalizationVars = {
-              username: contact.username || "",
-              followersCount: contact.followers?.toString() || "0",
-              ...contactCustomData
-            };
-
-            const html = EmailService.personalizeTemplate(template.content, personalizationVars);
-            const subject = EmailService.personalizeTemplate(template.subject, personalizationVars);
-
-            console.log(`[Campaign ${campaign.id}] Dispatching to SMTP for ${contact.email}...`);
-            
-            // Mark as SENDING just before dispatch
-            await prisma.sentEmail.updateMany({
-              where: { campaignId: campaign.id, recipient: contact.email, status: 'QUEUED' },
-              data: { status: 'SENDING', sentAt: new Date() }
-            });
-
-            const result = await emailService.sendOutreachEmail({
-              to: contact.email,
-              subject: subject,
-              html,
-              campaignId: campaign.id,
-              username: contact.username || "",
-            });
-
-            if (result.success) {
-              console.log(`[Campaign ${campaign.id}] SUCCESS: Email delivered to ${contact.email}`);
-              await prisma.sentEmail.updateMany({
-                where: { 
-                  campaignId: campaign.id, 
-                  recipient: contact.email, 
-                  status: 'SENDING' 
-                },
-                data: { 
-                  status: 'SENT', 
-                  messageId: result.messageId ? result.messageId.replace(/[<>]/g, '') : `sent-${Date.now()}` 
-                }
-              });
-            } else {
-              console.warn(`[Campaign ${campaign.id}] FAILED: ${contact.email} - ${result.error}`);
-              await prisma.sentEmail.updateMany({
-                where: { 
-                  campaignId: campaign.id, 
-                  recipient: contact.email, 
-                  status: 'SENDING' 
-                },
-                data: { 
-                  status: 'FAILED',
-                  messageId: `failed-${Date.now()}-${contact.email}`
-                }
-              });
-            }
-
-          } catch (e: any) {
-            console.error(`[Campaign ${campaign.id}] ERROR in send loop for ${contact.email}:`, e);
-            try {
-              // Ensure we don't leave it stuck in QUEUED or SENDING if the loop crashes
-              await prisma.sentEmail.updateMany({
-                where: { 
-                  campaignId: campaign.id, 
-                  recipient: contact.email, 
-                  status: { in: ['QUEUED', 'SENDING'] } 
-                },
-                data: { 
-                  status: 'FAILED',
-                  messageId: `failed-${Date.now()}-${contact.email}`
-                }
-              });
-            } catch (updateErr) {
-              console.error("Failed to update status on error:", updateErr);
-            }
-          }
-        }
-        console.log(`[Campaign ${campaign.id}] Outreach batch complete.`);
-        
-        await prisma.notification.create({
-          data: {
-            userId,
-            title: "Outreach Complete",
-            message: `Campaign "${campaign.name}" has finished dispatching to all ${contacts.length} contacts.`,
-            type: "SUCCESS",
-            campaignId: campaign.id
-          }
-        });
-      })();
-    }
+    console.log(`[Campaign ${campaign.id}] Starting outreach engine asynchronously...`);
+    runCampaignOutreach(campaign.id, userId);
 
     res.status(201).json(campaign);
   } catch (error: any) {
@@ -267,10 +165,26 @@ const formatCosts = (text: string) => {
 const escapeCSV = (val: string) => {
   if (val === null || val === undefined) return '""';
   const str = String(val);
-  if (/^\+?\d{10,}$/.test(str)) {
-    return `="${str}"`;
-  }
   return `"${str.replace(/"/g, '""')}"`;
+};
+
+export const extractMobileNumber = (text: string): string => {
+  if (!text) return "";
+  const candidates = text.match(/(?:\+91|=91|91)?[\s-]*\d(?:[\s-]*\d){9,11}\b/g) || [];
+  for (const cand of candidates) {
+    let cleaned = cand.replace(/[\s-]/g, "");
+    if (cleaned.startsWith("+91")) {
+      cleaned = cleaned.substring(3);
+    } else if (cleaned.startsWith("=91")) {
+      cleaned = cleaned.substring(3);
+    } else if (cleaned.startsWith("91") && cleaned.length > 10) {
+      cleaned = cleaned.substring(2);
+    }
+    if (cleaned.length === 10) {
+      return cleaned;
+    }
+  }
+  return "";
 };
 
 export const getCampaignReport = async (req: AuthRequest, res: Response) => {
@@ -307,7 +221,7 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
     return acc;
   }, {});
 
-  const header = "Email,Times in Selection,Status,Replied Date,All Replies\n";
+  const header = "Email,Times in Selection,Status,Mobile Number,Replied Date,All Replies\n";
   const rows = Object.values(groupedEmails).map((group: any) => {
     let primaryStatus = 'PENDING';
     if (group.statuses.has('REPLIED')) primaryStatus = 'REPLIED';
@@ -326,7 +240,16 @@ export const getCampaignReport = async (req: AuthRequest, res: Response) => {
       ? sortedReplies.map((r: any) => new Date(r.receivedAt).toLocaleString()).join(' | ')
       : '';
     
-    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(primaryStatus)},${escapeCSV(repliedDateFormatted)},${escapeCSV(allRepliesFormatted)}`;
+    let mobileNumber = "";
+    for (const r of sortedReplies) {
+      const num = extractMobileNumber(r.body);
+      if (num) {
+        mobileNumber = num;
+        break;
+      }
+    }
+
+    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(primaryStatus)},${escapeCSV(mobileNumber)},${escapeCSV(repliedDateFormatted)},${escapeCSV(allRepliesFormatted)}`;
   }).join('\n');
   
   res.attachment(`campaign_${id}_report.csv`);
@@ -411,7 +334,7 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
     return acc;
   }, {});
 
-  const header = "Email,Times in Selection,Campaigns,Status,Replied Date,All Replies\n";
+  const header = "Email,Times in Selection,Campaigns,Status,Mobile Number,Replied Date,All Replies\n";
   const rows = Object.values(groupedEmails).map((group: any) => {
     let primaryStatus = 'PENDING';
     if (group.statuses.has('REPLIED')) primaryStatus = 'REPLIED';
@@ -432,10 +355,270 @@ export const exportMultipleCampaigns = async (req: AuthRequest, res: Response) =
 
     const campaignsStr = Array.from(group.campaigns).join('; ');
 
-    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(campaignsStr)},${escapeCSV(primaryStatus)},${escapeCSV(repliedDateFormatted)},${escapeCSV(allRepliesFormatted)}`;
+    let mobileNumber = "";
+    for (const r of sortedReplies) {
+      const num = extractMobileNumber(r.body);
+      if (num) {
+        mobileNumber = num;
+        break;
+      }
+    }
+
+    return `${escapeCSV(group.recipient)},${group.validSends},${escapeCSV(campaignsStr)},${escapeCSV(primaryStatus)},${escapeCSV(mobileNumber)},${escapeCSV(repliedDateFormatted)},${escapeCSV(allRepliesFormatted)}`;
   }).join('\n');
   
   res.attachment(`campaigns_report.csv`);
   res.status(200).send(header + rows);
+};
+
+
+export const runCampaignOutreach = async (campaignId: string, userId: string) => {
+  try {
+    // 0. Fetch user settings for SMTP
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.smtpEmail || !user.smtpPassword) {
+      console.error(`[Campaign ${campaignId}] Cannot run outreach: User SMTP settings missing.`);
+      return;
+    }
+
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: campaignId },
+      include: { template: true }
+    });
+
+    if (!campaign || !campaign.template) {
+      console.error(`[Campaign ${campaignId}] Campaign or template not found.`);
+      return;
+    }
+
+    const template = campaign.template;
+
+    // Load remaining QUEUED emails
+    const queuedEmails = await prisma.sentEmail.findMany({
+      where: { campaignId, status: 'QUEUED' },
+      orderBy: { sentAt: 'asc' }
+    });
+
+    if (queuedEmails.length === 0) {
+      console.log(`[Campaign ${campaignId}] No queued emails to send.`);
+      return;
+    }
+
+    // Load all contacts for this campaign to construct custom data map
+    const contacts = await prisma.contact.findMany({
+      where: { campaignId }
+    });
+
+    const contactMap = new Map<string, any>();
+    for (const contact of contacts) {
+      contactMap.set(contact.email.toLowerCase(), contact);
+    }
+
+    console.log(`[Campaign ${campaignId}] Starting outreach engine for ${queuedEmails.length} queued emails...`);
+
+    const emailService = new EmailService({
+        server: "smtp.gmail.com",
+        port: 465,
+        email: user.smtpEmail,
+        password: decrypt(user.smtpPassword),
+        senderName: user.senderName || user.name || "Vuducom Outreach"
+    });
+
+    let consecutiveFailures = 0;
+    const maxConsecutiveFailures = 3;
+    let aborted = false;
+
+    for (let i = 0; i < queuedEmails.length; i++) {
+      if (aborted) break;
+      const queuedEmail = queuedEmails[i];
+      const email = queuedEmail.recipient;
+      const recordId = queuedEmail.id;
+
+      try {
+        // Re-verify status and format before sending (using recordId)
+        const currentRecord = await prisma.sentEmail.findUnique({
+            where: { id: recordId }
+        });
+
+        if (!currentRecord || currentRecord.status !== 'QUEUED') {
+            console.log(`[Campaign ${campaignId}] Skipping ${email} (Status: ${currentRecord?.status || 'NOT_FOUND'})`);
+            continue;
+        }
+
+        // Find contact custom details
+        const contact = contactMap.get(email.toLowerCase()) || { email, username: queuedEmail.username, followers: null, customData: null };
+        const parsedCustomData = contact.customData ? JSON.parse(contact.customData) : {};
+        const personalizationVars = {
+          username: contact.username || "",
+          followersCount: contact.followers?.toString() || "0",
+          ...parsedCustomData
+        };
+
+        console.log(`[Campaign ${campaignId}] Personalizing for ${email}...`);
+        const html = EmailService.personalizeTemplate(template.content, personalizationVars);
+        const subject = EmailService.personalizeTemplate(template.subject, personalizationVars);
+
+        console.log(`[Campaign ${campaignId}] Dispatching to SMTP for ${email}...`);
+        
+        // Mark as SENDING just before dispatch (by recordId)
+        await prisma.sentEmail.update({
+          where: { id: recordId },
+          data: { status: 'SENDING', sentAt: new Date() }
+        });
+
+        // Rate-limiting delay to protect SMTP connection from Gmail blocks (2 seconds)
+        await sleep(2000);
+
+        const result = await emailService.sendOutreachEmail({
+          to: email,
+          subject: subject,
+          html,
+          campaignId: campaignId,
+          username: contact.username || "",
+        });
+
+        if (result.success) {
+          consecutiveFailures = 0;
+          console.log(`[Campaign ${campaignId}] SUCCESS: Email delivered to ${email}`);
+          await prisma.sentEmail.update({
+            where: { id: recordId },
+            data: { 
+              status: 'SENT', 
+              messageId: result.messageId ? result.messageId.replace(/[<>]/g, '') : `sent-${Date.now()}` 
+            }
+          });
+        } else {
+          consecutiveFailures++;
+          console.warn(`[Campaign ${campaignId}] FAILED: ${email} - ${result.error}`);
+          await prisma.sentEmail.update({
+            where: { id: recordId },
+            data: { 
+              status: 'FAILED',
+              messageId: `failed-${Date.now()}-${email}`
+            }
+          });
+
+          // Check if it is a fatal auth error or if consecutive network timeouts reached limit
+          const isAuthError = result.error && (
+            result.error.includes("EAUTH") || 
+            result.error.toLowerCase().includes("authentication") || 
+            result.error.toLowerCase().includes("login")
+          );
+
+          if (isAuthError || consecutiveFailures >= maxConsecutiveFailures) {
+            aborted = true;
+            const reason = isAuthError 
+              ? "SMTP Authentication failed. Please check your App Password in Settings."
+              : `Multiple consecutive SMTP/network connection failures (${consecutiveFailures}).`;
+            console.warn(`[Campaign ${campaignId}] Auto-aborting campaign due to: ${reason}`);
+
+            // Find remaining records to mark as FAILED
+            const remainingEmails = queuedEmails.slice(i + 1);
+            const remainingIds = remainingEmails.map(r => r.id);
+
+            if (remainingIds.length > 0) {
+              await prisma.sentEmail.updateMany({
+                where: { id: { in: remainingIds } },
+                data: { status: 'FAILED' }
+              });
+            }
+
+            await prisma.notification.create({
+              data: {
+                userId,
+                title: "Campaign Aborted",
+                message: `Campaign "${campaign.name}" was automatically aborted: ${reason}`,
+                type: "ERROR",
+                campaignId: campaignId
+              }
+            });
+            break;
+          }
+        }
+
+      } catch (e: any) {
+        consecutiveFailures++;
+        console.error(`[Campaign ${campaignId}] ERROR in send loop for ${email}:`, e);
+        try {
+          await prisma.sentEmail.update({
+            where: { id: recordId },
+            data: { 
+              status: 'FAILED',
+              messageId: `failed-${Date.now()}-${email}`
+            }
+          });
+        } catch (updateErr) {
+          console.error("Failed to update status on error:", updateErr);
+        }
+      }
+    }
+
+    if (!aborted) {
+      // Lag Prevention: Double check if there are any remaining queued emails (due to database pooling lag or transient skips)
+      const remainingQueued = await prisma.sentEmail.findMany({
+        where: { campaignId, status: 'QUEUED' },
+        select: { id: true }
+      });
+
+      if (remainingQueued.length > 0) {
+        console.log(`[Campaign ${campaignId}] Found ${remainingQueued.length} remaining queued emails due to database lag. Re-triggering pass...`);
+        // Trigger another pass asynchronously to avoid call stack issues
+        setTimeout(() => {
+          runCampaignOutreach(campaignId, userId).catch(err => 
+            console.error(`[Campaign ${campaignId}] Error in re-triggered outreach pass:`, err)
+          );
+        }, 1000);
+        return;
+      }
+
+      console.log(`[Campaign ${campaignId}] Outreach batch complete.`);
+      
+      await prisma.notification.create({
+        data: {
+          userId,
+          title: "Outreach Complete",
+          message: `Campaign "${campaign.name}" has finished dispatching to all contacts.`,
+          type: "SUCCESS",
+          campaignId: campaignId
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error(`[Campaign ${campaignId}] Global runCampaignOutreach error:`, error);
+  }
+};
+
+export const resumeCampaigns = async () => {
+  try {
+    console.log("[Startup] Checking for interrupted campaigns to resume...");
+    // Find all SentEmail records with status 'QUEUED'
+    const queuedEmails = await prisma.sentEmail.findMany({
+      where: { status: 'QUEUED' },
+      select: { campaignId: true }
+    });
+
+    if (queuedEmails.length === 0) {
+      console.log("[Startup] No interrupted campaigns found.");
+      return;
+    }
+
+    // Get unique campaign IDs
+    const campaignIds = Array.from(new Set(queuedEmails.map(e => e.campaignId)));
+    console.log(`[Startup] Found ${campaignIds.length} campaigns with queued emails to resume:`, campaignIds);
+
+    for (const campaignId of campaignIds) {
+      // Find campaign to get the userId
+      const campaign = await prisma.campaign.findUnique({
+        where: { id: campaignId },
+        select: { userId: true }
+      });
+      if (campaign && campaign.userId) {
+        console.log(`[Startup] Resuming campaign ${campaignId} in background...`);
+        runCampaignOutreach(campaignId, campaign.userId);
+      }
+    }
+  } catch (error) {
+    console.error("[Startup] Failed to resume campaigns:", error);
+  }
 };
 

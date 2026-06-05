@@ -8,6 +8,7 @@ const fs = require('fs');
 let mainWindow;
 let backendProcess;
 let dynamicPort = 8000;
+const isDev = process.argv.includes('--dev');
 
 function findFreePort() {
   return new Promise((resolve, reject) => {
@@ -40,7 +41,7 @@ function createWindow() {
     <html>
       <body style="background-color: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
         <h2 style="margin-bottom: 10px;">Initializing Vuducom Outreach...</h2>
-        <p style="color: #888;">Starting backend services on port ${dynamicPort}...</p>
+        <p style="color: #888;">${isDev ? 'Connecting to Next.js dev server on port 3000...' : `Starting backend services on port ${dynamicPort}...`}</p>
         <div style="margin-top: 20px; width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
         <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
       </body>
@@ -51,16 +52,25 @@ function createWindow() {
   const maxAttempts = 60; // 30 seconds
 
   const checkServer = () => {
-    http.get(`http://127.0.0.1:${dynamicPort}/api/health`, (res) => {
-      if (res.statusCode === 200) {
-        console.log('Backend is ready, loading app...');
-        mainWindow.loadURL(`http://127.0.0.1:${dynamicPort}`);
-      } else {
+    if (isDev) {
+      http.get('http://localhost:3000', (res) => {
+        console.log('Frontend dev server is ready, loading app...');
+        mainWindow.loadURL('http://localhost:3000');
+      }).on('error', () => {
         retry();
-      }
-    }).on('error', () => {
-      retry();
-    });
+      });
+    } else {
+      http.get(`http://127.0.0.1:${dynamicPort}/api/health`, (res) => {
+        if (res.statusCode === 200) {
+          console.log('Backend is ready, loading app...');
+          mainWindow.loadURL(`http://127.0.0.1:${dynamicPort}`);
+        } else {
+          retry();
+        }
+      }).on('error', () => {
+        retry();
+      });
+    }
   };
 
   const retry = () => {
@@ -69,9 +79,9 @@ function createWindow() {
       mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURI(`
         <html>
           <body style="background-color: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; text-align: center; padding: 20px;">
-            <h2 style="color: #ef4444;">Backend Failed to Start</h2>
-            <p>The application could not connect to the local server.</p>
-            <p style="font-size: 14px; color: #888; margin-top: 20px;">Try restarting the application. Internal port assignment failed.</p>
+            <h2 style="color: #ef4444;">${isDev ? 'Dev Server Failed to Start' : 'Backend Failed to Start'}</h2>
+            <p>${isDev ? 'Could not connect to Next.js dev server at http://localhost:3000.' : 'The application could not connect to the local server.'}</p>
+            <p style="font-size: 14px; color: #888; margin-top: 20px;">${isDev ? 'Please run "npm run dev" in your terminal first.' : 'Try restarting the application. Internal port assignment failed.'}</p>
           </body>
         </html>
       `));
@@ -109,6 +119,10 @@ app.whenReady().then(async () => {
   createWindow();
 
   mainWindow.webContents.once('did-finish-load', () => {
+    if (isDev) {
+      console.log('Dev mode active. Electron will load the live dev server with hot reload.');
+      return;
+    }
     setTimeout(() => {
       try {
         const backendPath = isPackaged 

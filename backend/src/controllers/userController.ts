@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { encrypt } from '../utils/crypto';
+import { encrypt, decrypt } from '../utils/crypto';
 
 
 const prisma = new PrismaClient();
@@ -43,13 +43,19 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
             { expiresIn: '7d' }
         );
 
-        const { smtpPassword, ...safeUser } = user;
+        const decryptedPassword = user.smtpPassword ? decrypt(user.smtpPassword) : "";
         const responseData = { 
-            ...safeUser, 
-            hasSmtpConfigured: !!smtpPassword,
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            senderName: user.senderName,
+            smtpEmail: user.smtpEmail,
+            smtpPassword: decryptedPassword,
+            role: user.role,
+            createdAt: user.createdAt,
+            hasSmtpConfigured: !!user.smtpPassword,
             refreshedToken
         };
-        // We no longer send the plaintext password back for security reasons
         res.json(responseData);
     } catch (error: any) {
         res.status(500).json({ error: error.message });

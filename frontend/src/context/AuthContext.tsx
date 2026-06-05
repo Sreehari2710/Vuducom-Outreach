@@ -72,14 +72,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         .then(res => {
           if (!res.ok) {
-            throw new Error(`Auth sync failed with status ${res.status}`);
+            const error = new Error(`Auth sync failed with status ${res.status}`);
+            (error as any).status = res.status;
+            throw error;
           }
           return res.json();
         })
         .then(data => {
           if (data && !data.error) {
             const { refreshedToken, ...userProfile } = data;
-            const updatedUser = { ...userProfile, hasSmtpConfigured: true };
+            const updatedUser = { ...userProfile, hasSmtpConfigured: userProfile.hasSmtpConfigured };
             const updatedToken = refreshedToken || savedToken;
             
             setToken(updatedToken);
@@ -97,9 +99,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         .catch(err => {
           console.error("Auth sync failed", err);
-          // If it's a HTTP error (e.g. 401 or 403), log out immediately.
-          // Do not log out for generic network fetch errors so offline usage or startup connection hiccups don't kick users out.
-          if (err.message && err.message.includes("status")) {
+          // If it's an explicit 401 (Unauthorized) or 403 (Forbidden), log out immediately.
+          // Do not log out for generic network fetch errors, timeouts, or 500 server errors.
+          if (err.status === 401 || err.status === 403) {
             logout();
           }
         })

@@ -24,10 +24,26 @@ const formatCosts = (text: string) => {
 const escapeCSV = (val: string) => {
   if (val === null || val === undefined) return '""';
   const str = String(val);
-  if (/^\+?\d{10,}$/.test(str)) {
-    return `="${str}"`;
-  }
   return `"${str.replace(/"/g, '""')}"`;
+};
+
+const extractMobileNumber = (text: string): string => {
+  if (!text) return "";
+  const candidates = text.match(/(?:\+91|=91|91)?[\s-]*\d(?:[\s-]*\d){9,11}\b/g) || [];
+  for (const cand of candidates) {
+    let cleaned = cand.replace(/[\s-]/g, "");
+    if (cleaned.startsWith("+91")) {
+      cleaned = cleaned.substring(3);
+    } else if (cleaned.startsWith("=91")) {
+      cleaned = cleaned.substring(3);
+    } else if (cleaned.startsWith("91") && cleaned.length > 10) {
+      cleaned = cleaned.substring(2);
+    }
+    if (cleaned.length === 10) {
+      return cleaned;
+    }
+  }
+  return "";
 };
 
 function CampaignDetailsContent() {
@@ -131,21 +147,32 @@ function CampaignDetailsContent() {
     });
 
     if (filteredContacts.length === 0) {
-      showNotification("No data to download for the selected filter.", "warning");
+      showNotification("No data to download for the selected filter.", "info");
       return;
     }
 
-    const header = "Email,Times in Selection,Status,All Replies\n";
+    const header = "Email,Times in Selection,Status,Mobile Number,All Replies\n";
     const rows = filteredContacts.map((contact: any) => {
       const emailLog = selectedCampaign.emails.find((e: any) => e.recipient === contact.email);
       let allReplies = '';
+      let sortedReplies: any[] = [];
       if (emailLog?.replies?.length > 0) {
-        allReplies = emailLog.replies.sort((a: any, b: any) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime())
-          .map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
+        sortedReplies = [...emailLog.replies].sort((a: any, b: any) => new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime());
+        allReplies = sortedReplies.map((r: any) => `[${new Date(r.receivedAt).toLocaleString()}] ${r.body}`).join(' | ');
         allReplies = formatCosts(allReplies);
       }
+      
+      let mobileNumber = "";
+      for (const r of sortedReplies) {
+        const num = extractMobileNumber(r.body);
+        if (num) {
+          mobileNumber = num;
+          break;
+        }
+      }
+
       const count = selectedCampaign.globalCounts?.[contact.email] || (emailLog?.status === 'FAILED' || emailLog?.status === 'CANCELLED' ? 0 : 1);
-      return `${escapeCSV(contact.email)},${count},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(allReplies)}`;
+      return `${escapeCSV(contact.email)},${count},${escapeCSV(emailLog?.status || 'PENDING')},${escapeCSV(mobileNumber)},${escapeCSV(allReplies)}`;
     }).join('\n');
 
     const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });

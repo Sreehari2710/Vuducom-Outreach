@@ -67,7 +67,7 @@ export class EmailService {
       ).join('(?:<[^>]*>|&nbsp;|\\s)+')}}`;
       
       const regex = new RegExp(pattern, 'g');
-      personalized = personalized.replace(regex, value);
+      personalized = personalized.replace(regex, () => value);
     }
     return personalized;
   }

@@ -197,6 +197,16 @@ function CampaignDetailsContent() {
      </div>
   );
 
+  const queuedCount = selectedCampaign.emails?.filter((e: any) => e.status === 'QUEUED').length ?? 0;
+  const sendingCount = selectedCampaign.emails?.filter((e: any) => e.status === 'SENDING').length ?? 0;
+  const activeCount = queuedCount + sendingCount;
+  const estimatedSeconds = activeCount * 5;
+  const estMins = Math.floor(estimatedSeconds / 60);
+  const estSecs = estimatedSeconds % 60;
+  const estimatedLabel = estMins > 0
+    ? `~${estMins}m ${estSecs > 0 ? `${estSecs}s` : ''}`.trim()
+    : `~${estSecs}s`;
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 md:mb-8 gap-4">
@@ -215,21 +225,30 @@ function CampaignDetailsContent() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
-          {selectedCampaign?.emails?.some((e: any) => e.status === 'QUEUED' || e.status === 'SENDING') && (
-            <button 
-              onClick={stopCampaign}
-              disabled={isStopping}
-              className={`flex-1 md:flex-none px-5 py-2.5 md:py-2 rounded-md font-black text-[10px] flex items-center justify-center gap-2 transition-all border uppercase tracking-widest ${
-                isStopping 
-                  ? 'bg-surface-container-high border-outline-variant/10 text-slate-300 cursor-not-allowed' 
-                  : 'bg-error/10 border-error text-error hover:bg-error hover:text-on-error'
-              }`}
-            >
-              <span className={`material-symbols-outlined text-[16px] ${isStopping ? 'animate-spin' : ''}`}>
-                {isStopping ? 'sync' : 'stop_circle'}
-              </span>
-              {isStopping ? 'Stopping...' : 'Stop Campaign'}
-            </button>
+          {activeCount > 0 && (
+            <>
+              <button
+                onClick={stopCampaign}
+                disabled={isStopping}
+                className={`flex-1 md:flex-none px-5 py-2.5 md:py-2 rounded-md font-black text-[10px] flex items-center justify-center gap-2 transition-all border uppercase tracking-widest ${
+                  isStopping
+                    ? 'bg-surface-container-high border-outline-variant/10 text-slate-300 cursor-not-allowed'
+                    : 'bg-error/10 border-error text-error hover:bg-error hover:text-on-error'
+                }`}
+              >
+                <span className={`material-symbols-outlined text-[16px] ${isStopping ? 'animate-spin' : ''}`}>
+                  {isStopping ? 'sync' : 'stop_circle'}
+                </span>
+                {isStopping ? 'Stopping...' : 'Stop Campaign'}
+              </button>
+              <div className="flex-1 md:flex-none flex items-center gap-2 px-4 py-2.5 md:py-2 rounded-md border border-primary/20 bg-primary/5 text-primary whitespace-nowrap">
+                <span className="material-symbols-outlined text-[16px] animate-pulse">schedule</span>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-primary/70">Est. Completion</span>
+                  <span className="text-[11px] font-black">{estimatedLabel}</span>
+                </div>
+              </div>
+            </>
           )}
           <div className="relative flex-1 md:flex-none flex items-center">
             <span className="material-symbols-outlined absolute left-3 text-[16px] text-slate-400">filter_list</span>

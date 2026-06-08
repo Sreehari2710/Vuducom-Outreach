@@ -1,10 +1,7 @@
 import { ImapFlow } from 'imapflow';
-import { PrismaClient } from '@prisma/client';
 import { simpleParser } from 'mailparser';
 import { decrypt } from '../utils/crypto';
-
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 export class ReplyService {
   private client: ImapFlow;

@@ -1,10 +1,8 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { EmailService } from '../services/EmailService';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { decrypt } from '../utils/crypto';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

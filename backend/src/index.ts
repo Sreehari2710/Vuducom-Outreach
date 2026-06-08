@@ -7,8 +7,8 @@ import { createCampaign, getCampaigns, getCampaignReport, deleteCampaign, stopCa
 import { signup, signin } from './controllers/authController';
 import { getProfile, updateProfile, updateSettings } from './controllers/userController';
 import { authenticateToken, AuthRequest } from './middleware/authMiddleware';
-import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
+import prisma from './lib/prisma';
 
 // Prevent fatal crashes in production
 process.on('uncaughtException', (err) => {
@@ -22,7 +22,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const app = express();
 const port = Number(process.env.PORT) || 8000;
-const prisma = new PrismaClient();
 
 app.use(cors());
 app.use(express.json());

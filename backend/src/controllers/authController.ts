@@ -1,9 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-vuducom';
 
 export const signup = async (req: Request, res: Response) => {

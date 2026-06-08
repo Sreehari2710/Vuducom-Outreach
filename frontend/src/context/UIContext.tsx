@@ -54,7 +54,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         if (!res.ok) console.error("Notification response not OK:", res.status);
         return res.json();
       })
-      .then(data => setActivities(data))
+      .then(data => setActivities(Array.isArray(data) ? data : []))
       .catch(err => console.error("Notification fetch failed", err));
   };
 

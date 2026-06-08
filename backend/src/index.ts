@@ -228,10 +228,11 @@ app.post('/api/sync-replies', authenticateToken as any, async (req: AuthRequest,
 app.get('/api/notifications', authenticateToken as any, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.userId;
+    if (!userId) return res.json([]);
     const notifications = await prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: 50 // Limit to last 50
+      take: 50
     });
     res.json(notifications);
   } catch (error: any) {
@@ -246,7 +247,7 @@ app.patch('/api/notifications/:id', authenticateToken as any, async (req: AuthRe
     const { isRead } = req.body;
     const userId = req.user?.userId;
 
-    const notification = await prisma.notification.findUnique({ where: { id, userId } });
+    const notification = await prisma.notification.findFirst({ where: { id, userId } });
     if (!notification) return res.status(404).json({ error: "Notification not found" });
 
     const updated = await prisma.notification.update({
@@ -255,6 +256,7 @@ app.patch('/api/notifications/:id', authenticateToken as any, async (req: AuthRe
     });
     res.json(updated);
   } catch (error: any) {
+    console.error("[PATCH /api/notifications error]:", error);
     res.status(500).json({ error: "Failed to update notification" });
   }
 });
@@ -264,12 +266,13 @@ app.delete('/api/notifications/:id', authenticateToken as any, async (req: AuthR
     const id = req.params.id as string;
     const userId = req.user?.userId;
 
-    const notification = await prisma.notification.findUnique({ where: { id, userId } });
+    const notification = await prisma.notification.findFirst({ where: { id, userId } });
     if (!notification) return res.status(404).json({ error: "Notification not found" });
 
     await prisma.notification.delete({ where: { id } });
     res.status(204).send();
   } catch (error: any) {
+    console.error("[DELETE /api/notifications/:id error]:", error);
     res.status(500).json({ error: "Failed to delete notification" });
   }
 });
@@ -277,9 +280,11 @@ app.delete('/api/notifications/:id', authenticateToken as any, async (req: AuthR
 app.delete('/api/notifications', authenticateToken as any, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.userId;
+    if (!userId) return res.status(204).send();
     await prisma.notification.deleteMany({ where: { userId } });
     res.status(204).send();
   } catch (error: any) {
+    console.error("[DELETE /api/notifications error]:", error);
     res.status(500).json({ error: "Failed to clear notifications" });
   }
 });

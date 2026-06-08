@@ -211,7 +211,8 @@ app.post('/api/sync-replies', authenticateToken as any, async (req: AuthRequest,
     
     res.json({ message: "Sync complete" });
   } catch (err: any) {
-    let errorMessage = err.message;
+    console.error("[POST /api/sync-replies error]:", err);
+    let errorMessage = err?.message || "Sync failed unexpectedly";
     if (err.authenticationFailed) {
       errorMessage = "IMAP Authentication Failed. Please check your App Password in Settings.";
     } else if (err.responseText) {

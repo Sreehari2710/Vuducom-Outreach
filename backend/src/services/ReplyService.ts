@@ -11,6 +11,7 @@ export class ReplyService {
       host: 'imap.gmail.com',
       port: 993,
       secure: true,
+      logger: false,
       auth: {
         user: config.email,
         pass: decrypt(config.password),
@@ -173,12 +174,11 @@ export class ReplyService {
           }
 
           if (!existing) {
-             // New reply discovered, notify!
-             // @ts-ignore
              await prisma.notification.create({
                data: {
+                 userId,
                  title: isBounce ? "Delivery Failure Detected" : "New Reply Received",
-                 message: isBounce 
+                 message: isBounce
                    ? `Bounced email to ${parentEmail.recipient} in campaign "${parentEmail.campaign?.name}".`
                    : `You received a new response from ${sender} in campaign "${parentEmail.campaign?.name || 'Unknown'}".`,
                  type: isBounce ? "ERROR" : "REPLY",

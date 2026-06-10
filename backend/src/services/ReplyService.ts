@@ -21,8 +21,6 @@ export class ReplyService {
 
   async syncReplies(campaignIdOrIds: string | string[] | undefined, userId: string) {
     await this.client.connect();
-    
-    // Select Inbox
     const lock = await this.client.getMailboxLock('INBOX');
     try {
       // Dynamic Campaign Timeline: Only scan emails starting from the exact second the oldest campaign was created
@@ -190,8 +188,7 @@ export class ReplyService {
       }
     } finally {
       lock.release();
+      await this.client.logout().catch(() => {});
     }
-
-    await this.client.logout();
   }
 }

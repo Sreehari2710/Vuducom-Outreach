@@ -48,63 +48,66 @@ app.put('/api/user/settings', authenticateToken as any, updateSettings as any);
 // Templates
 app.get('/api/templates', authenticateToken as any, async (req: AuthRequest, res) => {
   const userId = req.user?.userId;
-  const templates = await prisma.template.findMany({ where: { userId } });
-  res.json(templates);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const templates = await prisma.template.findMany({ where: { userId } });
+    res.json(templates);
+  } catch (err: any) {
+    console.error("[GET /api/templates error]:", err);
+    res.status(500).json({ error: "Failed to fetch templates" });
+  }
 });
 
 app.post('/api/templates', authenticateToken as any, async (req: AuthRequest, res) => {
   const { name, subject, content } = req.body;
   const userId = req.user?.userId;
-  
-  const existing = await prisma.template.findFirst({ where: { name, userId } });
-  if (existing) {
-    return res.status(409).json({ error: "A template with this name already exists." });
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const existing = await prisma.template.findFirst({ where: { name, userId } });
+    if (existing) return res.status(409).json({ error: "A template with this name already exists." });
+    const template = await prisma.template.create({ data: { name, subject, content, userId } });
+    res.json(template);
+  } catch (err: any) {
+    console.error("[POST /api/templates error]:", err);
+    res.status(500).json({ error: "Failed to create template" });
   }
-
-  const template = await prisma.template.create({
-    data: { name, subject, content, userId }
-  });
-  res.json(template);
 });
 
 app.put('/api/templates/:id', authenticateToken as any, async (req: AuthRequest, res) => {
   const id = req.params.id as string;
   const { name, subject, content } = req.body;
   const userId = req.user?.userId;
-
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
   try {
-    const template = await prisma.template.findUnique({ where: { id, userId } });
+    const template = await prisma.template.findFirst({ where: { id, userId } });
     if (!template) return res.status(404).json({ error: "Template not found" });
 
-    // Check if name is taken by ANOTHER template
     if (name) {
-      const existing = await prisma.template.findFirst({
-        where: { name, userId, NOT: { id } }
-      });
-      if (existing) {
-        return res.status(409).json({ error: "A template with this name already exists." });
-      }
+      const existing = await prisma.template.findFirst({ where: { name, userId, NOT: { id } } });
+      if (existing) return res.status(409).json({ error: "A template with this name already exists." });
     }
 
-    const updated = await prisma.template.update({
-      where: { id },
-      data: { name, subject, content }
-    });
+    const updated = await prisma.template.update({ where: { id }, data: { name, subject, content } });
     res.json(updated);
-  } catch (err) {
-    res.status(404).json({ error: "Template not found" });
+  } catch (err: any) {
+    console.error("[PUT /api/templates error]:", err);
+    return res.status(500).json({ error: "Failed to update template" });
   }
 });
 
 app.delete('/api/templates/:id', authenticateToken as any, async (req: AuthRequest, res) => {
   const id = req.params.id as string;
   const userId = req.user?.userId;
-  
-  const template = await prisma.template.findUnique({ where: { id, userId } });
-  if (!template) return res.status(404).json({ error: "Template not found" });
-
-  await prisma.template.delete({ where: { id } });
-  res.status(204).send();
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const template = await prisma.template.findFirst({ where: { id, userId } });
+    if (!template) return res.status(404).json({ error: "Template not found" });
+    await prisma.template.delete({ where: { id } });
+    res.status(204).send();
+  } catch (err: any) {
+    console.error("[DELETE /api/templates error]:", err);
+    res.status(500).json({ error: "Failed to delete template" });
+  }
 });
 
 // Campaigns
@@ -112,70 +115,60 @@ app.get('/api/campaigns', authenticateToken as any, getCampaigns as any);
 app.get('/api/campaigns/:id', authenticateToken as any, async (req: AuthRequest, res) => {
   const id = req.params.id as string;
   const userId = req.user?.userId;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  // Janitor Service: Auto-fail stale "SENDING" records (> 30 mins) for this campaign
-  const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
-  await prisma.sentEmail.updateMany({
-    where: {
-      campaignId: id,
-      status: 'SENDING',
-      sentAt: { lt: thirtyMinsAgo }
-    },
-    data: { status: 'FAILED' }
-  });
-
-  // Janitor Service: Auto-fail stale "QUEUED" records (> 2 days) for this campaign
-  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-  await prisma.sentEmail.updateMany({
-    where: {
-      campaignId: id,
-      status: 'QUEUED',
-      sentAt: { lt: twoDaysAgo }
-    },
-    data: { status: 'FAILED' }
-  });
-
-  const campaign = await prisma.campaign.findUnique({
-    where: { id, userId },
-    include: {
-      template: true,
-      contacts: true,
-      emails: { include: { replies: true } }
-    }
-  });
-
-  if (!campaign) return res.status(404).json({ error: "Campaign not found" });
-
-  // Calculate global frequency for these recipients across all user campaigns
-  const recipients = campaign.emails.map(e => e.recipient);
-  let countMap: Record<string, number> = {};
-
-  if (recipients.length > 0) {
-    const userCampaigns = await prisma.campaign.findMany({
-      where: { userId },
-      select: { id: true }
+  try {
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+    await prisma.sentEmail.updateMany({
+      where: { campaignId: id, status: 'SENDING', sentAt: { lt: thirtyMinsAgo } },
+      data: { status: 'FAILED' }
     });
-    const campaignIds = userCampaigns.map(c => c.id);
 
-    const globalCounts = await prisma.sentEmail.groupBy({
-      by: ['recipient'],
-      where: {
-        recipient: { in: recipients },
-        status: { notIn: ['FAILED', 'CANCELLED'] },
-        campaignId: { in: campaignIds }
-      },
-      _count: {
-        recipient: true
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    await prisma.sentEmail.updateMany({
+      where: { campaignId: id, status: 'QUEUED', sentAt: { lt: twoDaysAgo } },
+      data: { status: 'FAILED' }
+    });
+
+    const campaign = await prisma.campaign.findFirst({
+      where: { id, userId },
+      include: {
+        template: true,
+        contacts: true,
+        emails: { include: { replies: true } }
       }
     });
 
-    countMap = globalCounts.reduce((acc: any, curr) => {
-      acc[curr.recipient] = curr._count.recipient;
-      return acc;
-    }, {});
-  }
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
 
-  res.json({ ...campaign, globalCounts: countMap });
+    const recipients = campaign.emails.map(e => e.recipient);
+    let countMap: Record<string, number> = {};
+
+    if (recipients.length > 0) {
+      const userCampaigns = await prisma.campaign.findMany({ where: { userId }, select: { id: true } });
+      const campaignIds = userCampaigns.map(c => c.id);
+
+      const globalCounts = await prisma.sentEmail.groupBy({
+        by: ['recipient'],
+        where: {
+          recipient: { in: recipients },
+          status: { notIn: ['FAILED', 'CANCELLED'] },
+          campaignId: { in: campaignIds }
+        },
+        _count: { recipient: true }
+      });
+
+      countMap = globalCounts.reduce((acc: any, curr) => {
+        acc[curr.recipient] = curr._count.recipient;
+        return acc;
+      }, {});
+    }
+
+    res.json({ ...campaign, globalCounts: countMap });
+  } catch (err: any) {
+    console.error("[GET /api/campaigns/:id error]:", err);
+    res.status(500).json({ error: "Failed to fetch campaign" });
+  }
 });
 app.delete('/api/campaigns/:id', authenticateToken as any, deleteCampaign as any);
 app.post('/api/campaigns/:id/stop', authenticateToken as any, stopCampaign as any);
